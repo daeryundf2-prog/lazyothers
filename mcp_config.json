@@ -1,3 +1,10 @@
-﻿{
-  "mcpServers": {}
+{
+  "mcpServers": {
+    "korean_law": {
+      "command": "node",
+      "args": [
+        "C:/Users/HP/.gemini/config/plugins/lazyforensic/korean-law-mcp/build/index.js"
+      ]
+    }
+  }
 }

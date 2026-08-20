@@ -1,20 +1,21 @@
-﻿{
+{
   "name": "lazyothers",
-  "version": "0.1.0",
-  "description": "Aggregated Antigravity plugin for external tools (kordoc, context7, grep_app, xds).",
+  "version": "0.2.0",
+  "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, and external MCP tools.",
   "author": {
     "name": "daeryundf2-prog",
     "url": "https://github.com/daeryundf2-prog"
   },
   "license": "MIT",
-  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds"],
+  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech"],
+  "skills": "./skills",
   "mcpServers": "./mcp_config.json",
   "interface": {
     "displayName": "LazyOthers",
-    "shortDescription": "Standalone MCP & Utility Tools for Antigravity",
-    "longDescription": "Bundles context7, grep_app, kordoc, and xds tools for easy Git synchronization across machines.",
+    "shortDescription": "Korean Legal-Tech, Document Processing & Standalone MCP Tools",
+    "longDescription": "Bundles HWP/HWPX parsing, court evidence stamping, context7, grep_app, kordoc, and xds tools.",
     "developerName": "daeryundf2-prog",
-    "category": "Productivity Tools",
+    "category": "Productivity & Legal-Tech",
     "brandColor": "#10B981"
   }
 }
