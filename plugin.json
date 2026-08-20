@@ -1,0 +1,20 @@
+﻿{
+  "name": "lazyothers",
+  "version": "0.1.0",
+  "description": "Aggregated Antigravity plugin for external tools (kordoc, context7, grep_app, xds).",
+  "author": {
+    "name": "daeryundf2-prog",
+    "url": "https://github.com/daeryundf2-prog"
+  },
+  "license": "MIT",
+  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds"],
+  "mcpServers": "./mcp_config.json",
+  "interface": {
+    "displayName": "LazyOthers",
+    "shortDescription": "Standalone MCP & Utility Tools for Antigravity",
+    "longDescription": "Bundles context7, grep_app, kordoc, and xds tools for easy Git synchronization across machines.",
+    "developerName": "daeryundf2-prog",
+    "category": "Productivity Tools",
+    "brandColor": "#10B981"
+  }
+}
