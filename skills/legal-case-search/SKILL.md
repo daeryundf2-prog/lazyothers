@@ -9,10 +9,19 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 
 ## 핵심 도구
 
-- **`korean_law` MCP 도구:**
+- **`korean_law` MCP 도구 (optional — `lazyforensic` 플러그인 필요):**
   - `search_statutes(query)`: 법령 본문 및 조문 검색
   - `search_precedents(query)`: 대법원 및 하급심 판례 요지 검색
   - `get_statute_article(law_name, article_num)`: 특정 법률 조항 상세 조회
+
+> `lazyforensic` 미설치시 이 스킬은 비활성화됨. `mcp_config.json`의 `korean_law`는 `${PLUGIN_ROOT}/../lazyforensic/...` 상대경로로 설정, `optional: true`.
+
+## 설치
+
+```bash
+# 별도 플러그인
+git clone https://github.com/daeryundf2-prog/lazyforensic.git ~/.gemini/config/plugins/lazyforensic
+```
 
 ## 주요 위법성 대조 영역
 - **정보통신망법 제48조/제49조:** 비밀침해, 악성프로그램 유포, 정보통신망 침입.

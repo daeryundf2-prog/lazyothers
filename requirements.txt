@@ -1,0 +1,15 @@
+# lazyothers Python dependencies
+# Core (required for HWPX/HWP/PDF parsing)
+olefile>=0.47
+pymupdf>=1.23
+pypdf>=4.0
+
+# Optional — enhanced HWP 5.0 parsing
+hwp-hwpx-parser>=0.4
+
+# Optional — OCR for scanned PDFs
+# docling>=2.0
+# unstructured>=0.12
+
+# Dev
+pytest>=7.0

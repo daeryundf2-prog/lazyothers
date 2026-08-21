@@ -1,7 +1,13 @@
-﻿{
+{
   "name": "lazyothers",
-  "version": "0.1.0",
-  "description": "Antigravity plugin for custom and standalone MCP tools",
+  "version": "0.2.0",
+  "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, and external MCP tools.",
+  "author": "daeryundf2-prog",
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.8"
+  },
+  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech"],
   "type": "module",
   "license": "MIT",
   "scripts": {

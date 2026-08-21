@@ -10,6 +10,7 @@
   "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech"],
   "skills": "./skills",
   "mcpServers": "./mcp_config.json",
+  "pythonDependencies": "./requirements.txt",
   "interface": {
     "displayName": "LazyOthers",
     "shortDescription": "Korean Legal-Tech, Document Processing & Standalone MCP Tools",

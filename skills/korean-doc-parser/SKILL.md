@@ -11,9 +11,17 @@ description: "한국 공문서(HWP, HWPX, PDF) 텍스트, 표, 메타데이터 �
 
 - **스크립트:** `python ${PLUGIN_ROOT}/scripts/parse_korean_doc.py <파일경로> [--markdown] [--output <결과경로>]`
 - **지원 포맷:**
-  - `HWPX`: OWPML ZIP/XML 구조 파싱 (섹션별 본문, 표, 서식 메타데이터).
-  - `HWP 5.0`: OLE Compound 디컴프레션 및 텍스트 추출.
+  - `HWPX`: OWPML ZIP/XML 구조 파싱 (섹션별 본문, 표, 서식 메타데이터) — 의존성 없음.
+  - `HWP 5.0`: OLE Compound 디컴프레션 및 텍스트 추출 — `pip install olefile` 또는 `hwp-hwpx-parser`.
+  - `PDF`: 텍스트층 추출 — `pip install pymupdf` (권장) 또는 `pypdf`. 스캔본은 `needs OCR` 경고 후 `pymupdf --ocr` 또는 `docling` 별도 처리.
   - `Docling OCR` (선택): 스캔본 PDF의 경우 `docling` 연동을 통한 CJK 고정밀 인식.
+
+## 의존성
+
+```bash
+pip install -r ${PLUGIN_ROOT}/requirements.txt        # 전체
+# 또는 최소: pip install olefile pymupdf pypdf
+```
 
 ## 사용법
 

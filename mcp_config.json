@@ -1,10 +1,33 @@
 {
   "mcpServers": {
+    "kordoc": {
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/mcp/kordoc/bridge.js"],
+      "description": "한국 공문서(HWP/HWPX/PDF/DOCX) 파싱·서식입력·직인·비식별화 — 로컬 kordoc MCP 브리지 (미설치시 npx fallback)",
+      "env": {},
+      "fallback": "npx -y kordoc-mcp"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp"],
+      "description": "Context7 공식 라이브러리 문서 조회 (resolve-library-id → query-docs)"
+    },
+    "grep_app": {
+      "command": "npx",
+      "args": ["-y", "grep-app-mcp"],
+      "description": "GitHub 100만+ 레포 고속 코드 검색 (searchGitHub)"
+    },
+    "xds": {
+      "command": "npx",
+      "args": ["-y", "xds-mcp"],
+      "description": "Astryx XDS 디자인시스템/템플릿 검색"
+    },
     "korean_law": {
       "command": "node",
-      "args": [
-        "C:/Users/HP/.gemini/config/plugins/lazyforensic/korean-law-mcp/build/index.js"
-      ]
+      "args": ["${PLUGIN_ROOT}/../lazyforensic/korean-law-mcp/build/index.js"],
+      "description": "국가법령정보센터/대법원 판례 검색 — lazyforensic 플러그인 설치시 활성화 (optional)",
+      "optional": true,
+      "env": {}
     }
   }
 }

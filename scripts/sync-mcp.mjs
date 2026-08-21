@@ -1,6 +1,5 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -8,18 +7,19 @@ const __dirname = path.dirname(__filename);
 const pluginRoot = path.resolve(__dirname, "..");
 const sourceMcpDir = path.join(pluginRoot, "mcp");
 
-const homeDir = os.homedir();
-const targetMcpDir = path.join(homeDir, ".gemini", "antigravity", "mcp");
+// Antigravity spec: plugin's own mcp/ + mcp_config.json is authoritative.
+// This sync is OPTIONAL legacy helper — mirrors definitions to the
+// global Antigravity MCP directory for older runtimes that expect
+// ~/.gemini/antigravity/mcp. It does NOT replace mcp_config.json.
+const legacyTarget = path.join(pluginRoot, "..", "..", "antigravity", "mcp");
 
-console.log(`[lazyothers:sync] Syncing MCP definitions from ${sourceMcpDir} -> ${targetMcpDir}`);
+console.log(`[lazyothers:sync] Source: ${sourceMcpDir}`);
+console.log(`[lazyothers:sync] plugin.json mcpServers -> ./mcp_config.json (primary)`);
+console.log(`[lazyothers:sync] Legacy mirror target (optional): ${legacyTarget}`);
 
 if (!fs.existsSync(sourceMcpDir)) {
   console.error(`[lazyothers:sync] Error: Source directory does not exist: ${sourceMcpDir}`);
   process.exit(1);
-}
-
-if (!fs.existsSync(targetMcpDir)) {
-  fs.mkdirSync(targetMcpDir, { recursive: true });
 }
 
 function copyRecursive(src, dest) {
@@ -37,16 +37,44 @@ function copyRecursive(src, dest) {
   }
 }
 
+// Validate mcp_config.json covers all bundled tools
 try {
-  const toolDirs = fs.readdirSync(sourceMcpDir);
-  for (const tool of toolDirs) {
-    const srcTool = path.join(sourceMcpDir, tool);
-    const destTool = path.join(targetMcpDir, tool);
-    copyRecursive(srcTool, destTool);
-    console.log(`  ✓ Synced tool: ${tool}`);
+  const mcpConfigPath = path.join(pluginRoot, "mcp_config.json");
+  const mcpConfig = JSON.parse(fs.readFileSync(mcpConfigPath, "utf-8"));
+  const bundledTools = fs.readdirSync(sourceMcpDir).filter((d) => fs.statSync(path.join(sourceMcpDir, d)).isDirectory());
+  const registeredServers = Object.keys(mcpConfig.mcpServers || {});
+  console.log(`[lazyothers:sync] Bundled tools: ${bundledTools.join(", ")}`);
+  console.log(`[lazyothers:sync] Registered servers: ${registeredServers.join(", ")}`);
+  for (const tool of bundledTools) {
+    if (!registeredServers.includes(tool) && tool !== "korean_law") {
+      // korean_law is an external optional bridge (lazyforensic)
+      if (!registeredServers.includes(tool)) {
+        console.warn(`[lazyothers:sync] WARN: bundled tool '${tool}' not in mcp_config.json`);
+      }
+    }
   }
-  console.log("[lazyothers:sync] Successfully synced all MCP tools to Antigravity!");
+} catch (e) {
+  console.warn(`[lazyothers:sync] Could not validate mcp_config.json: ${e.message}`);
+}
+
+// Optional legacy mirror — skip if target parent does not exist
+try {
+  if (fs.existsSync(path.dirname(legacyTarget))) {
+    if (!fs.existsSync(legacyTarget)) {
+      fs.mkdirSync(legacyTarget, { recursive: true });
+    }
+    const toolDirs = fs.readdirSync(sourceMcpDir);
+    for (const tool of toolDirs) {
+      const srcTool = path.join(sourceMcpDir, tool);
+      const destTool = path.join(legacyTarget, tool);
+      copyRecursive(srcTool, destTool);
+      console.log(`  ✓ Mirrored (legacy): ${tool}`);
+    }
+  } else {
+    console.log("[lazyothers:sync] Legacy target parent not found — skipping mirror (primary is mcp_config.json)");
+  }
+  console.log("[lazyothers:sync] Done. Primary MCP registration is via plugin.json -> mcp_config.json");
 } catch (err) {
-  console.error("[lazyothers:sync] Failed to sync MCP tools:", err);
+  console.error("[lazyothers:sync] Failed:", err);
   process.exit(1);
 }
