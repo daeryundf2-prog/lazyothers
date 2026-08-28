@@ -17,6 +17,47 @@ def _escape_md_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ").strip()
 
 
+def _local_name(tag: str) -> str:
+    """Strip XML namespace: '{uri}name' -> 'name'. Names without braces pass through."""
+    return tag.rsplit("}", 1)[-1]
+
+
+def _findall_local(root, local_name: str) -> list:
+    """Namespace-agnostic findall: match elements by local tag name.
+
+    HWPX(OWPML) 문서는 한컴 버전에 따라 네임스페이스 URI가 다를 수 있으므로
+    (예: http://www.hancom.co.kr/hwpml/2011/hp) 로컬 이름으로 매칭한다.
+    """
+    return [el for el in root.iter() if _local_name(el.tag) == local_name]
+
+
+def _natural_sort_key(name: str):
+    """'section10.xml'이 'section2.xml'보다 뒤로 가도록 숫자 구간을 정수로 비교."""
+    import re
+    return [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", name)]
+
+
+DC_ELEMENTS = {
+    "title", "creator", "subject", "description", "publisher",
+    "contributor", "date", "type", "format", "identifier",
+    "source", "language", "relation", "coverage", "rights", "keyword",
+}
+
+
+def _parse_dc_metadata(content_hpf_data: bytes) -> dict:
+    """content.hpf에서 Dublin Core 메타데이터 추출 (네임스페이스 무관, 로컬 이름 매칭)."""
+    metadata = {}
+    try:
+        tree = ET.fromstring(content_hpf_data)
+    except Exception as e:
+        return {"_warning": f"Failed to parse content.hpf: {e}"}
+    for elem in tree.iter():
+        local = _local_name(elem.tag)
+        if local in DC_ELEMENTS and elem.text and elem.text.strip() and local not in metadata:
+            metadata[local] = elem.text.strip()
+    return metadata
+
+
 def parse_hwpx(file_path: str) -> dict:
     """순수 파이썬 ZIP/XML 기반 HWPX 파서 (한컴 오피스/JVM 무설치 지원)"""
     result = {
@@ -29,18 +70,15 @@ def parse_hwpx(file_path: str) -> dict:
     }
 
     with zipfile.ZipFile(file_path, 'r') as z:
-        # 1. 메타데이터 (Contents/content.hpf)
+        # 1. 메타데이터 (Contents/content.hpf — Dublin Core, 네임스페이스 무관 매칭)
         if "Contents/content.hpf" in z.namelist():
-            try:
-                tree = ET.fromstring(z.read("Contents/content.hpf"))
-                for meta in tree.findall(".//{http://purl.org/dc/elements/1.1/}*"):
-                    tag = meta.tag.split('}')[-1]
-                    result["metadata"][tag] = meta.text or ""
-            except Exception as e:
-                result["metadata"]["_warning"] = f"Failed to parse content.hpf: {e}"
+            result["metadata"] = _parse_dc_metadata(z.read("Contents/content.hpf"))
 
-        # 2. 본문 섹션 (Contents/section0.xml, section1.xml ...)
-        section_files = sorted([f for f in z.namelist() if f.startswith("Contents/section") and f.endswith(".xml")])
+        # 2. 본문 섹션 (Contents/section0.xml, section1.xml ...) — 자연 정렬
+        section_files = sorted(
+            [f for f in z.namelist() if f.startswith("Contents/section") and f.endswith(".xml")],
+            key=_natural_sort_key,
+        )
         if not section_files:
             result["metadata"]["_warning"] = "No section XML found in HWPX"
         full_text_chunks = []
@@ -53,19 +91,19 @@ def parse_hwpx(file_path: str) -> dict:
                 print(f"[WARN] Failed to parse {s_file}: {e}", file=sys.stderr)
                 continue
 
-            # 텍스트 추출 (hp:t 태그)
-            texts = [elem.text for elem in tree.findall(".//{http://schemas.hancom.co.kr/owl/hp}t") if elem.text]
+            # 텍스트 추출 (hp:t 태그 — 네임스페이스 무관)
+            texts = [elem.text for elem in _findall_local(tree, "t") if elem.text]
             sec_text = "\n".join(texts)
             result["sections"].append({"name": s_file, "text": sec_text})
             full_text_chunks.append(sec_text)
 
-            # 표 추출 (hp:tbl 태그)
-            for tbl in tree.findall(".//{http://schemas.hancom.co.kr/owl/hp}tbl"):
+            # 표 추출 (hp:tbl 태그 — 네임스페이스 무관)
+            for tbl in _findall_local(tree, "tbl"):
                 rows = []
-                for tr in tbl.findall(".//{http://schemas.hancom.co.kr/owl/hp}tr"):
+                for tr in [t for t in tbl.iter() if _local_name(t.tag) == "tr"]:
                     row_cells = []
-                    for tc in tr.findall(".//{http://schemas.hancom.co.kr/owl/hp}tc"):
-                        cell_texts = [t.text for t in tc.findall(".//{http://schemas.hancom.co.kr/owl/hp}t") if t.text]
+                    for tc in [c for c in tr.iter() if _local_name(c.tag) == "tc"]:
+                        cell_texts = [t.text for t in tc.iter() if _local_name(t.tag) == "t" and t.text]
                         row_cells.append(" ".join(cell_texts).strip())
                     if row_cells:
                         rows.append(row_cells)
@@ -78,48 +116,67 @@ def parse_hwpx(file_path: str) -> dict:
 
 
 def parse_hwp_legacy(file_path: str) -> dict:
-    """구형 HWP (v5.0) 파서 (hwp-hwpx-parser / olefile 기반 또는 안내)"""
+    """구형 HWP (v5.0) 파서 (hwp-hwpx-parser 우선, olefile raw 스트림 fallback)."""
+    # 우선: hwp-hwpx-parser (PyPI, 순수 파이썬 — HWP5Reader API)
     try:
-        from hwp_hwpx_parser import HwpParser
-        parser = HwpParser(file_path)
+        from hwp_hwpx_parser import HWP5Reader
+        reader = HWP5Reader(file_path)
+        text = reader.extract_text() or ""
+        tables = []
+        try:
+            for tbl in reader.get_tables():
+                rows = getattr(tbl, "rows", None) or []
+                if rows:
+                    tables.append([[str(c) for c in row] for row in rows])
+        except Exception:
+            pass
+        reader.close()
         return {
             "file_path": file_path,
             "format": "HWP 5.0 (Binary)",
-            "text": parser.get_text(),
-            "tables": parser.get_tables() if hasattr(parser, 'get_tables') else [],
-            "metadata": {}
+            "text": text,
+            "tables": tables,
+            "metadata": {},
         }
     except ImportError:
-        # Fallback: olefile 사용
-        try:
-            import olefile
-            import zlib
-            ole = olefile.OleFileIO(file_path)
-            streams = ole.listdir()
-            body_streams = [s for s in streams if s[0] == "BodyText"]
-            text_chunks = []
-            for b in body_streams:
-                stream_data = ole.openstream(b).read()
-                try:
-                    decompressed = zlib.decompress(stream_data, -15)
-                    text = decompressed.decode('utf-16-le', errors='ignore')
-                    clean = "".join([c for c in text if c.isprintable() or c in "\n\r\t"])
-                    text_chunks.append(clean)
-                except Exception:
-                    pass
-            ole.close()
-            return {
-                "file_path": file_path,
-                "format": "HWP 5.0 (OLE Fallback)",
-                "text": "\n".join(text_chunks),
-                "metadata": {"note": "Extracted via raw OLE stream decompression"}
-            }
-        except Exception as e:
-            return {
-                "file_path": file_path,
-                "format": "HWP 5.0",
-                "error": f"Failed to parse HWP. Install hwp-hwpx-parser or olefile: {str(e)}"
-            }
+        pass  # 패키지 미설치 — olefile fallback으로 진행
+    except Exception as e:
+        return {
+            "file_path": file_path,
+            "format": "HWP 5.0 (Binary)",
+            "error": f"hwp-hwpx-parser failed: {str(e)}",
+        }
+
+    # Fallback: olefile 사용 (hwp-hwpx-parser 미설치 시 원시 스트림 디컴프레션)
+    try:
+        import olefile
+        import zlib
+        ole = olefile.OleFileIO(file_path)
+        streams = ole.listdir()
+        body_streams = [s for s in streams if s[0] == "BodyText"]
+        text_chunks = []
+        for b in body_streams:
+            stream_data = ole.openstream(b).read()
+            try:
+                decompressed = zlib.decompress(stream_data, -15)
+                text = decompressed.decode('utf-16-le', errors='ignore')
+                clean = "".join([c for c in text if c.isprintable() or c in "\n\r\t"])
+                text_chunks.append(clean)
+            except Exception:
+                pass
+        ole.close()
+        return {
+            "file_path": file_path,
+            "format": "HWP 5.0 (OLE Fallback)",
+            "text": "\n".join(text_chunks),
+            "metadata": {"note": "Extracted via raw OLE stream decompression"}
+        }
+    except Exception as e:
+        return {
+            "file_path": file_path,
+            "format": "HWP 5.0",
+            "error": f"Failed to parse HWP. Install hwp-hwpx-parser or olefile: {str(e)}"
+        }
 
 
 def parse_pdf(file_path: str) -> dict:
