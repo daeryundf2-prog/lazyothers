@@ -32,6 +32,29 @@ def _escape_cell(text: str) -> str:
     return str(text).replace("|", "\\|").replace("\n", " ").replace("\r", "")
 
 
+def resolve_evidence_hashes(evidence_list: list, base_dir: str = ""):
+    """sha256이 없는 항목에 대해 파일 해시를 계산해 채운다.
+
+    상대 경로는 --input-json 파일이 있는 디렉토리 기준으로 해석한다.
+    """
+    for item in evidence_list:
+        if item.get("sha256"):
+            continue
+        file_path = item.get("file_path", "")
+        if not file_path:
+            item["sha256"] = "N/A"
+            continue
+        candidates = [file_path]
+        if base_dir and not os.path.isabs(file_path):
+            candidates.insert(0, os.path.join(base_dir, file_path))
+        for cand in candidates:
+            if os.path.exists(cand):
+                item["sha256"] = calculate_sha256(cand)
+                break
+        else:
+            item["sha256"] = "N/A (file not found)"
+
+
 def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path: str):
     """표준 증거설명서 마크다운 생성"""
     lines = []
@@ -49,22 +72,9 @@ def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path
         title = _escape_cell(item.get("title", f"증거물_{idx}"))
         author_date = _escape_cell(f"{item.get('author', '작성자불상')} / {item.get('date', datetime.now().strftime('%Y-%m-%d'))}")
         purpose = _escape_cell(item.get("purpose", "주장사실 입증"))
-        file_path = item.get("file_path", "")
+        file_hash = _escape_cell(item.get("sha256", "N/A"))
 
-        file_hash = item.get("sha256")
-        if not file_hash and file_path:
-            # Resolve relative to input JSON dir if needed
-            abs_path = os.path.abspath(file_path) if os.path.isabs(file_path) else file_path
-            if os.path.exists(abs_path):
-                file_hash = calculate_sha256(abs_path)[:16] + "..."
-            elif os.path.exists(file_path):
-                file_hash = calculate_sha256(file_path)[:16] + "..."
-            else:
-                file_hash = "N/A (file not found)"
-        elif not file_hash:
-            file_hash = "N/A"
-
-        lines.append(f"| {idx} | **{label}** | {title} | {author_date} | {purpose} | `{_escape_cell(file_hash)}` |")
+        lines.append(f"| {idx} | **{label}** | {title} | {author_date} | {purpose} | `{file_hash}` |")
 
     lines.append("\n### 첨 부 서 류\n")
     for idx, item in enumerate(evidence_list, 1):
@@ -83,7 +93,7 @@ def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path
     print(f"[OK] Successfully generated Evidence Statement: {output_path}")
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="대법원 표준 규격 증거설명서 자동 생성기")
     parser.add_argument("--input-json", "-i", help="증거 목록 JSON 파일 경로")
     parser.add_argument("--output", "-o", default="증거설명서.md", help="출력 파일 경로 (.md)")
@@ -91,7 +101,7 @@ def main():
     parser.add_argument("--case-name", default="영업비밀침해금지 등 청구의 소", help="사건명")
     parser.add_argument("--court", default="서울중앙지방법원", help="관할 법원")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     evidence_list = []
     case_info = {
@@ -118,6 +128,10 @@ def main():
                     evidence_list = data
                 else:
                     print(f"[WARN] Unexpected JSON root type: {type(data)}", file=sys.stderr)
+
+    # 상대 경로는 input-json 위치 기준으로 해석해 전체 SHA-256을 채운다
+    base_dir = os.path.dirname(os.path.abspath(args.input_json)) if args.input_json else ""
+    resolve_evidence_hashes(evidence_list, base_dir)
 
     if not evidence_list:
         if args.input_json:
