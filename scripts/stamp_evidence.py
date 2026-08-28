@@ -9,25 +9,17 @@ import sys
 import argparse
 
 
-def _get_korean_font(page):
-    """Try to use a Korean-capable font; fall back to helv."""
-    # PyMuPDF built-in fonts: helv, cour, times etc have no Hangul glyphs.
-    # If user placed a TTF (e.g., NotoSansKR) alongside, try to use it.
-    # Otherwise, helv will render label as boxes — warn user.
-    try:
-        import fitz
-        # Check if a Korean font file exists next to script
-        for candidate in [
-            os.path.join(os.path.dirname(__file__), "NotoSansKR-Regular.ttf"),
-            "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-            "C:/Windows/Fonts/malgun.ttf",
-            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-        ]:
-            if os.path.exists(candidate):
-                # Register font for this page's document — use file-based font
-                return candidate
-    except Exception:
-        pass
+def _get_korean_font():
+    """Try to locate a Korean-capable font file; return its path or None."""
+    for candidate in [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "NotoSansKR-Regular.ttf"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "NotoSansKR-Regular.otf"),
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "C:/Windows/Fonts/malgun.ttf",
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    ]:
+        if os.path.exists(candidate):
+            return candidate
     return None
 
 
@@ -63,17 +55,17 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
 
     print(f"[*] Processing {total_pages} pages in '{input_pdf}'...")
 
-    korean_font_path = _get_korean_font(doc[0]) if len(doc) > 0 else None
+    korean_font_path = _get_korean_font()
     if korean_font_path:
         print(f"[*] Using Korean font: {korean_font_path}")
     else:
-        print("[WARN] No Korean TTF found — Hangul in label may render as boxes. Place NotoSansKR-Regular.ttf next to script.", file=sys.stderr)
+        print("[WARN] No Korean font found — Hangul in label may render as boxes. Place NotoSansKR-Regular.ttf next to script.", file=sys.stderr)
 
     for idx, page in enumerate(doc):
         current_page_num = start_page + idx
         rect = page.rect
 
-        # 1. 서증 표찰 — all_pages=True면 전 페이지, False면 첫 페이지만
+        # 1. 서증 표찰 — 기본 전 페이지, --first-only 지정 시 첫 페이지만
         should_stamp = all_pages or idx == 0
         if should_stamp:
             box_width = 110
@@ -86,36 +78,35 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
             page.draw_rect(fitz.Rect(box_x1, box_y1, box_x2, box_y2), color=(0.8, 0, 0), width=1.5, fill=(1, 1, 1))
 
             text_rect = fitz.Rect(box_x1, box_y1 + 4, box_x2, box_y2)
-            # Use Korean font if available
+            # 주의: fontfile만 지정하면 PyMuPDF가 이를 무시하고 helv로 렌더링해
+            # 한글이 '?'로 깨진다. 반드시 fontname을 함께 지정해 파일 폰트를 등록해야 함.
+            inserted = False
             if korean_font_path:
-                # Insert with file-based font
                 try:
-                    page.insert_textbox(
+                    rc = page.insert_textbox(
                         text_rect,
                         label,
                         fontsize=11,
+                        fontname="KOR",
                         fontfile=korean_font_path,
                         color=(0.8, 0, 0),
                         align=fitz.TEXT_ALIGN_CENTER,
                     )
+                    inserted = rc >= 0
                 except Exception:
-                    page.insert_textbox(
-                        text_rect, label, fontsize=11, fontname="helv", color=(0.8, 0, 0), align=fitz.TEXT_ALIGN_CENTER
-                    )
-            else:
+                    inserted = False
+            if not inserted:
+                print("[WARN] Korean font insert failed — falling back to helv (Hangul will break).", file=sys.stderr)
                 page.insert_textbox(
-                    text_rect,
-                    label,
-                    fontsize=11,
-                    fontname="helv",
-                    color=(0.8, 0, 0),
-                    align=fitz.TEXT_ALIGN_CENTER,
+                    text_rect, label, fontsize=11, fontname="helv", color=(0.8, 0, 0), align=fitz.TEXT_ALIGN_CENTER
                 )
 
         # 2. Bates 일련번호 — 단일 번호 (예: P-0001)
+        # 주의: insert_textbox는 공간이 부족하면 예외 대신 음수를 반환하고 텍스트를
+        # 조용히 누락하므로, 충분한 높이를 확보하고 반환값을 반드시 검사한다.
         bates_text = f"{bates_prefix}-{current_page_num:04d}"
-        bates_rect = fitz.Rect(rect.width / 2 - 80, rect.height - 25, rect.width / 2 + 80, rect.height - 10)
-        page.insert_textbox(
+        bates_rect = fitz.Rect(rect.width / 2 - 120, rect.height - 34, rect.width / 2 + 120, rect.height - 6)
+        rc = page.insert_textbox(
             bates_rect,
             bates_text,
             fontsize=9,
@@ -123,6 +114,8 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
             color=(0.2, 0.2, 0.2),
             align=fitz.TEXT_ALIGN_CENTER,
         )
+        if rc < 0:
+            print(f"[WARN] Bates number '{bates_text}' did not fit and was skipped (rc={rc:.2f})", file=sys.stderr)
 
     try:
         doc.save(output_pdf, garbage=4, deflate=True)
@@ -142,8 +135,7 @@ def main():
     parser.add_argument("--label", "-l", required=True, help="서증 부호 및 번호 (예: '갑 제1호증', '을 제2호증의 1')")
     parser.add_argument("--prefix", "-p", default="P", help="Bates 페이지 접두사 (기본: 'P')")
     parser.add_argument("--start", "-s", type=int, default=1, help="시작 페이지 번호 (기본: 1)")
-    parser.add_argument("--all-pages", action="store_true", default=True, help="전 페이지에 표찰 (기본: True)")
-    parser.add_argument("--first-only", action="store_true", help="첫 페이지만 표찰 (지정시 --all-pages 무시)")
+    parser.add_argument("--first-only", action="store_true", help="첫 페이지만 표찰 (미지정 시 전 페이지 표찰)")
 
     args = parser.parse_args()
 

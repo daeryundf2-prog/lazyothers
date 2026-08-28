@@ -15,7 +15,8 @@ description: "대법원 전자소송(ECFS) 표준 규격 증거 표찰(갑/을 �
    python ${PLUGIN_ROOT}/scripts/stamp_evidence.py "원본증거.pdf" --output "갑제1호증_카카오톡.pdf" --label "갑 제1호증" --prefix "P" --start 1
    # 첫 페이지만 표찰
    python ${PLUGIN_ROOT}/scripts/stamp_evidence.py "원본증거.pdf" --output "갑제1호증_카카오톡.pdf" --label "갑 제1호증" --first-only
-   # 한글 깨짐 방지: NotoSansKR-Regular.ttf를 scripts/ 폴더에 배치
+   # 한글 폰트: 시스템 폰트 자동 탐색 (AppleSDGothicNeo/맑은고딕/NanumGothic).
+   # 해당 폰트가 없으면 NotoSansKR-Regular.ttf를 scripts/ 폴더에 배치
    ```
 2. **증거설명서 자동 생성기:**
    ```bash
