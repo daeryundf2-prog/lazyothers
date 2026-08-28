@@ -1,31 +1,19 @@
 {
   "mcpServers": {
     "kordoc": {
-      "command": "node",
-      "args": ["${PLUGIN_ROOT}/mcp/kordoc/bridge.js"],
-      "description": "한국 공문서(HWP/HWPX/PDF/DOCX) 파싱·서식입력·직인·비식별화 — 로컬 kordoc MCP 브리지 (미설치시 npx fallback)",
-      "env": {},
-      "fallback": "npx -y kordoc-mcp"
+      "command": "npx",
+      "args": ["-y", "-p", "kordoc", "kordoc-mcp"],
+      "description": "한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱·서식입력·직인·비식별화 — npm kordoc 패키지의 MCP 서버 바이너리(kordoc-mcp). 툴 스펙은 mcp/kordoc/*.json 참조"
     },
     "context7": {
       "command": "npx",
-      "args": ["-y", "@context7/mcp"],
-      "description": "Context7 공식 라이브러리 문서 조회 (resolve-library-id → query-docs)"
-    },
-    "grep_app": {
-      "command": "npx",
-      "args": ["-y", "grep-app-mcp"],
-      "description": "GitHub 100만+ 레포 고속 코드 검색 (searchGitHub)"
-    },
-    "xds": {
-      "command": "npx",
-      "args": ["-y", "xds-mcp"],
-      "description": "Astryx XDS 디자인시스템/템플릿 검색"
+      "args": ["-y", "@upstash/context7-mcp"],
+      "description": "Context7 공식 라이브러리 문서 조회 (Upstash 공식 패키지: resolve-library-id → query-docs)"
     },
     "korean_law": {
       "command": "node",
-      "args": ["${PLUGIN_ROOT}/../lazyforensic/korean-law-mcp/build/index.js"],
-      "description": "국가법령정보센터/대법원 판례 검색 — lazyforensic 플러그인 설치시 활성화 (optional)",
+      "args": ["${PLUGIN_ROOT}/../lazyforensic-/korean-law-mcp/build/index.js"],
+      "description": "국가법령정보센터/대법원 판례 검색 — lazyforensic- 플러그인 클론 후 korean-law-mcp에서 npm install && npm run build 필요 (optional)",
       "optional": true,
       "env": {}
     }
