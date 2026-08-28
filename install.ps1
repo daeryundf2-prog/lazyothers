@@ -15,7 +15,7 @@ Set-Location $pluginDir
 # 1. Git Repositories Clone or Pull
 $repos = @{
     "lazyantigravity" = "https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git"
-    "lazyforensic"    = "https://github.com/daeryundf2-prog/lazyforensic.git"
+    "lazyforensic-"   = "https://github.com/daeryundf2-prog/lazyforensic-.git"
     "lazyothers"      = "https://github.com/daeryundf2-prog/lazyothers.git"
 }
 
@@ -77,6 +77,35 @@ if (Test-Path "$pluginDir\lazyothers\package.json") {
     }
 }
 
+# 3.5 Build korean-law-mcp (lazyforensic-, optional)
+if (Test-Path "$pluginDir\lazyforensic-\korean-law-mcp\package.json") {
+    Write-Host "Building korean-law-mcp (lazyforensic-)..." -ForegroundColor Green
+    Push-Location "$pluginDir\lazyforensic-\korean-law-mcp"
+    try {
+        npm install
+        npm run build
+    } catch {
+        Write-Host "  [!] korean-law-mcp build failed: $_" -ForegroundColor Red
+    } finally {
+        Pop-Location
+    }
+}
+
+# 3.6 Python dependencies for lazyothers skills (pymupdf/olefile etc.)
+if (Get-Command python -ErrorAction SilentlyContinue) {
+    Write-Host "Installing Python dependencies for lazyothers..." -ForegroundColor Green
+    Push-Location "$pluginDir\lazyothers"
+    try {
+        python -m pip install -r requirements.txt
+    } catch {
+        Write-Host "  [!] pip install failed: $_" -ForegroundColor Red
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Host "[!] python not found, skipping pip install" -ForegroundColor Yellow
+}
+
 # 4. Activate plugins in config.json (MERGE, not overwrite)
 Write-Host "Activating plugins in config.json..." -ForegroundColor Green
 $configPath = "$HOME\.gemini\config\config.json"
@@ -88,7 +117,7 @@ if (!(Test-Path $configDir)) {
 $defaultConfig = @{
     plugins = @{
         lazyantigravity = @{ enabled = $true }
-        lazyforensic    = @{ enabled = $true }
+        "lazyforensic-" = @{ enabled = $true }
         lazyothers      = @{ enabled = $true }
     }
 }
