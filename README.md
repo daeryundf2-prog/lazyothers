@@ -64,7 +64,7 @@ pip install pytest
 pytest -q
 ```
 
-GitHub Actions(`.github/workflows/ci.yml`)가 push/PR마다 pytest와 MCP 설정 검증을 실행합니다.
+GitHub Actions 워크플로는 `docs/ci-workflow.yml`에 준비되어 있습니다. push 토큰에 `workflow` 스코프가 있으면 `.github/workflows/ci.yml`로 이동 후 커밋하세요 (`mkdir -p .github/workflows && mv docs/ci-workflow.yml .github/workflows/ci.yml`).
 
 ## 🗺️ 로드맵 (다음 작업)
 
