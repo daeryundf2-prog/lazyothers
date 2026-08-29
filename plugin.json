@@ -1,20 +1,20 @@
 {
   "name": "lazyothers",
   "version": "0.3.0",
-  "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, and external MCP tools.",
+  "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, Humanize KR AI writing refinement, and external MCP tools.",
   "author": {
     "name": "daeryundf2-prog",
     "url": "https://github.com/daeryundf2-prog"
   },
   "license": "MIT",
-  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech"],
+  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech", "humanize-korean", "im-not-ai", "korean-writing"],
   "skills": "./skills",
   "mcpServers": "./mcp_config.json",
   "pythonDependencies": "./requirements.txt",
   "interface": {
     "displayName": "LazyOthers",
-    "shortDescription": "Korean Legal-Tech, Document Processing & Standalone MCP Tools",
-    "longDescription": "Bundles HWP/HWPX parsing, court evidence stamping, context7, grep_app, kordoc, and xds tools.",
+    "shortDescription": "Korean Legal-Tech, Document Processing & Humanize KR",
+    "longDescription": "Bundles HWP/HWPX parsing, court evidence stamping, Humanize KR (im-not-ai) AI text refinement, context7, grep_app, kordoc, and xds tools.",
     "developerName": "daeryundf2-prog",
     "category": "Productivity & Legal-Tech",
     "brandColor": "#10B981"
