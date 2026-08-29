@@ -103,12 +103,15 @@ def main(argv: list[str] | None = None) -> int:
 
     sa, sb = load(a.before), load(a.after)
 
-    print(f"이전: {sa.get('label')} @ {sa.get('captured_at')} (commit {sa.get('git_commit')}, K={sa.get('k')})")
-    print(f"이후: {sb.get('label')} @ {sb.get('captured_at')} (commit {sb.get('git_commit')}, K={sb.get('k')})")
+    # --json 모드에서는 stdout을 기계 파싱 가능한 순수 JSON으로 유지한다 —
+    # 사람용 헤더는 텍스트 모드에서만 출력한다(경고는 stderr이므로 양쪽 다 유지).
+    if not a.json:
+        print(f"이전: {sa.get('label')} @ {sa.get('captured_at')} (commit {sa.get('git_commit')}, K={sa.get('k')})")
+        print(f"이후: {sb.get('label')} @ {sb.get('captured_at')} (commit {sb.get('git_commit')}, K={sb.get('k')})")
 
     if sa.get("k", 0) < 2 or sb.get("k", 0) < 2:
         print(
-            "\n경고: 한쪽 이상이 K<2 입니다. 잡음 바닥을 못 재므로 대부분 '판정불가'가 됩니다.",
+            "경고: 한쪽 이상이 K<2 입니다. 잡음 바닥을 못 재므로 대부분 '판정불가'가 됩니다.",
             file=sys.stderr,
         )
 
