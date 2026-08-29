@@ -4,6 +4,9 @@ olefile>=0.47
 pymupdf>=1.23
 pypdf>=4.0
 
+# Financial flow tracer — XLSX 거래내역 읽기 (CSV는 표준 라이브러리로 처리)
+openpyxl>=3.1
+
 # Optional — enhanced HWP 5.0 parsing
 hwp-hwpx-parser>=0.4
 

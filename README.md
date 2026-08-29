@@ -1,4 +1,4 @@
-# LazyOthers (v0.3.0)
+# LazyOthers (v0.4.0)
 
 Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP/HWPX), 한국어 AI 윤문(Humanize KR) 및 확장 MCP 도구 모음** 플러그인입니다.
 
@@ -19,13 +19,23 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
     *   증거설명서는 실제 증거 JSON 없이 생성하면 본문 머리/끝에 **"[샘플 자동 생성본 — 법원 제출 금지]"** 워터마크가 들어갑니다.
 *   **`legal-case-search`**: 국가법령정보센터 Open API 및 대법원 판례 시맨틱 검색. (`lazyforensic` 플러그인 설치 시 활성화, optional)
 
-### 3. 확장 MCP 도구 모음 (Bundled MCP Tools)
+### 3. 디지털 포렌식·증거 분석 (Forensic & Evidence)
+*   **`evidence-integrity-audit`**: 증거 폴더 전수 SHA-256/MD5/SHA-1 감사, 제출용 보고서 기재 해시와의 대조([일치/불일치/미측정] 판정표), 무결성 증명서(Chain of Custody Verification Sheet) 자동 생성. (`scripts/audit_evidence_integrity.py`)
+*   **`web-evidence-capture`**: playwright MCP 채증 파이프라인 — 웹 게시물·SNS·기사 캡처 직후 URL·시각·SHA-256을 결합한 채증 기록 생성, 서증 표찰 연계. (`scripts/certify_evidence_file.py`)
+*   **`financial-flow-tracer`**: 은행 거래내역(CSV/XLSX) 자금 흐름 분석 — 상대방별 랭킹, 단기 자금 순환(출금→재입금) 의심 감지, 입금원→출금처 홉 체인, Mermaid 흐름도. (`scripts/trace_financial_flow.py`)
+*   **`sqlite-evidence-query`**: 압수 SQLite DB 읽기전용 즉석 분석 — 스키마 자동 파악, SELECT 전용 강제, 삭제 레코드 잔존 흔적(본 파일+WAL/저널) 키워드 검색. (`scripts/query_evidence_db.py`)
+
+### 4. 법률 문서 자동화 (Legal Drafting)
+*   **`legal-draft-builder`**: 사실관계 메모+증거 목록으로 소장·준비서면·고소장·내용증명 초안 생성 — 청구취지/청구원인 분리, 본문 증거 라벨 자동 인용(입증방법 결합), 변호사 검토 고지 강제. (`scripts/generate_legal_draft.py`)
+
+### 5. 확장 MCP 도구 모음 (Bundled MCP Tools)
 *   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.10.0 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
 *   **`context7`**: 공식 라이브러리 및 최신 프레임워크 실시간 문서 조회 — Upstash 공식 패키지 (`npx -y @upstash/context7-mcp@4.0.4`, 버전 고정)
-*   **`grep_app`**: GitHub 오픈소스 전역 코드베이스 고속 검색 (`npx -y grep-app-mcp`)
-*   **`xds`**: 엔지니어링 데이터 및 문서 검색 (`npx -y xds-mcp`)
+*   **`playwright`**: 웹 자동화·채증 — 게시물·SNS·기사 스크린샷/PDF 캡처 (microsoft `@playwright/mcp@0.0.79`, 버전 고정). 캡처 직후 `certify_evidence_file.py`로 인증
+*   **`grep_app`** *(manifest-only)*: GitHub 코드 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/grep_app/` 스펙만 보관 중 (로드맵)
+*   **`xds`** *(manifest-only)*: Astryx XDS 디자인시스템 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/xds/` 스펙만 보관 중 (로드맵)
 
-> MCP 등록: `plugin.json` → `mcp_config.json` 3개 서버 (kordoc/context7 + optional korean_law). `npm run setup`은 검증 + 레거시 미러만 수행.
+> MCP 등록: `plugin.json` → `mcp_config.json` 4개 서버 (kordoc/context7/playwright + optional korean_law). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
 
 ---
 
