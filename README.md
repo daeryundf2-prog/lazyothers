@@ -16,7 +16,7 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 *   **`court-evidence-stiper`**: 대법원 전자소송(ECFS) 표준 규격 `[갑 제O호증]` / `[을 제O호증]` 증거 표찰 박스 및 Bates 번호 스탬핑, `증거설명서` 자동 생성.
     *   표찰 박스 폭은 라벨 길이에 맞춰 자동 계산되고, `--margin`으로 우측 여백을 조정할 수 있습니다(인장·전송표와 겹칠 때).
     *   증거설명서는 실제 증거 JSON 없이 생성하면 본문 머리/끝에 **"[샘플 자동 생성본 — 법원 제출 금지]"** 워터마크가 들어갑니다.
-*   **`legal-case-search`**: 국가법령정보센터 Open API 및 대법원 판례 시맨틱 검색. (`lazyforensic-` 플러그인 설치 시 활성화, optional)
+*   **`legal-case-search`**: 국가법령정보센터 Open API 및 대법원 판례 시맨틱 검색. (`lazyforensic` 플러그인 설치 시 활성화, optional)
 
 ### 3. 확장 MCP 도구 모음 (Bundled MCP Tools)
 *   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.10.0 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
@@ -63,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 bash install.sh
 ```
 
-설치 스크립트는 3개 플러그인(`lazyantigravity`, `lazyforensic-`, `lazyothers`) 클론/업데이트, korean-law-mcp 빌드, `pip install`, `config.json` 병합까지 수행합니다.
+설치 스크립트는 3개 플러그인(`lazyantigravity`, `lazyforensic`, `lazyothers`) 클론/업데이트, korean-law-mcp 빌드, `pip install`, `config.json` 병합까지 수행합니다. (`lazyforensic`은 저장소 URL은 `lazyforensic-.git`이지만 플러그인 디렉터리·plugin.json 이름은 하이픈 없는 `lazyforensic`입니다.)
 
 ## 요구사항
 

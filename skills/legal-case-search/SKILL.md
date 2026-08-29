@@ -14,16 +14,16 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
   - `search_precedents(query)`: 대법원 및 하급심 판례 요지 검색
   - `get_statute_article(law_name, article_num)`: 특정 법률 조항 상세 조회
 
-> `lazyforensic-` 미설치시 이 스킬은 비활성화됨. `mcp_config.json`의 `korean_law`는 `${PLUGIN_ROOT}/../lazyforensic-/korean-law-mcp/build/index.js` 상대경로로 설정, `optional: true`.
+> `lazyforensic` 미설치시 이 스킬은 비활성화됨. `mcp_config.json`의 `korean_law`는 `${PLUGIN_ROOT}/../lazyforensic/korean-law-mcp/build/index.js` 상대경로로 설정, `optional: true`.
 
 ## 설치
 
 ```bash
-# 별도 플러그인 (저장소 이름에 하이픈 주의: lazyforensic-)
-git clone https://github.com/daeryundf2-prog/lazyforensic-.git ~/.gemini/config/plugins/lazyforensic-
+# 별도 플러그인 (저장소 URL에 하이픈 있음, 플러그인 디렉터리명은 하이픈 없음)
+git clone https://github.com/daeryundf2-prog/lazyforensic-.git ~/.gemini/config/plugins/lazyforensic
 
 # korean-law-mcp 빌드 (build/index.js 생성)
-cd ~/.gemini/config/plugins/lazyforensic-/korean-law-mcp
+cd ~/.gemini/config/plugins/lazyforensic/korean-law-mcp
 npm install && npm run build
 ```
 

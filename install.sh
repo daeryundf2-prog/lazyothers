@@ -11,7 +11,7 @@ cd "${PLUGIN_DIR}"
 # "이름 URL" 쌍 목록 (bash 3.2 호환)
 PLUGINS="
 lazyantigravity https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git
-lazyforensic-   https://github.com/daeryundf2-prog/lazyforensic-.git
+lazyforensic    https://github.com/daeryundf2-prog/lazyforensic-.git
 lazyothers      https://github.com/daeryundf2-prog/lazyothers.git
 "
 
@@ -44,10 +44,10 @@ if command -v npm >/dev/null 2>&1; then
     ) || echo "  [!] LazyAntigravity build failed"
   fi
 
-  echo "Building korean-law-mcp (lazyforensic-, optional)..."
-  if [ -f "${PLUGIN_DIR}/lazyforensic-/korean-law-mcp/package.json" ]; then
+  echo "Building korean-law-mcp (lazyforensic, optional)..."
+  if [ -f "${PLUGIN_DIR}/lazyforensic/korean-law-mcp/package.json" ]; then
     (
-      cd "${PLUGIN_DIR}/lazyforensic-/korean-law-mcp"
+      cd "${PLUGIN_DIR}/lazyforensic/korean-law-mcp"
       npm install
       npm run build || echo "  [!] korean-law-mcp build failed — korean_law MCP는 빌드 후 활성화됨"
     ) || echo "  [!] korean-law-mcp build failed"
@@ -82,7 +82,7 @@ import json, os
 config_path = os.path.expanduser("~/.gemini/config/config.json")
 default_plugins = {
     "lazyantigravity": {"enabled": True},
-    "lazyforensic-": {"enabled": True},
+    "lazyforensic": {"enabled": True},
     "lazyothers": {"enabled": True},
 }
 if os.path.exists(config_path):

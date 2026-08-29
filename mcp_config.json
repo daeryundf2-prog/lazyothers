@@ -12,8 +12,8 @@
     },
     "korean_law": {
       "command": "node",
-      "args": ["${PLUGIN_ROOT}/../lazyforensic-/korean-law-mcp/build/index.js"],
-      "description": "국가법령정보센터/대법원 판례 검색 — lazyforensic- 플러그인 클론 후 korean-law-mcp에서 npm install && npm run build 필요 (optional)",
+      "args": ["${PLUGIN_ROOT}/../lazyforensic/korean-law-mcp/build/index.js"],
+      "description": "국가법령정보센터/대법원 판례 검색 — lazyforensic 플러그인(저장소 URL은 lazyforensic-.git, 플러그인 디렉터리·plugin.json 이름은 lazyforensic) 클론 후 korean-law-mcp에서 npm install && npm run build 필요 (optional)",
       "optional": true,
       "env": {}
     }

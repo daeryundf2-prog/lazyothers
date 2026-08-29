@@ -15,7 +15,7 @@ Set-Location $pluginDir
 # 1. Git Repositories Clone or Pull
 $repos = @{
     "lazyantigravity" = "https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git"
-    "lazyforensic-"   = "https://github.com/daeryundf2-prog/lazyforensic-.git"
+    "lazyforensic"    = "https://github.com/daeryundf2-prog/lazyforensic-.git"
     "lazyothers"      = "https://github.com/daeryundf2-prog/lazyothers.git"
 }
 
@@ -97,11 +97,11 @@ if (Test-Path "$pluginDir\lazyothers\package.json") {
     }
 }
 
-# 3.5 Build korean-law-mcp (lazyforensic-, optional)
-if (Test-Path "$pluginDir\lazyforensic-\korean-law-mcp\package.json") {
+# 3.5 Build korean-law-mcp (lazyforensic, optional)
+if (Test-Path "$pluginDir\lazyforensic\korean-law-mcp\package.json") {
     if (Get-Command npm -ErrorAction SilentlyContinue) {
-        Write-Host "Building korean-law-mcp (lazyforensic-)..." -ForegroundColor Green
-        Push-Location "$pluginDir\lazyforensic-\korean-law-mcp"
+        Write-Host "Building korean-law-mcp (lazyforensic)..." -ForegroundColor Green
+        Push-Location "$pluginDir\lazyforensic\korean-law-mcp"
         try {
             npm install
             if ($LASTEXITCODE -ne 0) {
@@ -151,7 +151,7 @@ if (!(Test-Path $configDir)) {
 $defaultConfig = @{
     plugins = @{
         lazyantigravity = @{ enabled = $true }
-        "lazyforensic-" = @{ enabled = $true }
+        lazyforensic    = @{ enabled = $true }
         lazyothers      = @{ enabled = $true }
     }
 }
