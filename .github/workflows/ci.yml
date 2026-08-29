@@ -25,7 +25,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y fonts-nanum
 
       - name: Run pytest
-        run: pytest -q
+        run: |
+          pytest -q --tb=short 2>&1 | tee pytest.log
+          status=${PIPESTATUS[0]}
+          # 실패 테스트를 check-run 어노테이션으로 노출 (로그 열람 없이 원인 파악용)
+          grep -E "^(FAILED|ERROR)" pytest.log | head -20 | while read -r line; do
+            echo "::error::${line}"
+          done
+          exit $status
 
       - name: Set up Node
         uses: actions/setup-node@v4

@@ -30,10 +30,12 @@ def test_certify_binds_hash_url_and_time(capture):
 
 
 def test_record_self_hash_deterministic(capture):
+    """자기 해시는 기록 필드만으로 재계산되어 검증 가능해야 한다.
+
+    두 호출이 1초 경계를 걸치면 certified_at이 달라져(별개 기록) 해시가
+    달라지는 것이 정상이므로, 재계산 일치로만 검증한다.
+    """
     rec1 = cef.certify([str(capture)], url="u", note="", case_number="")
-    rec2 = cef.certify([str(capture)], url="u", note="", case_number="")
-    # certified_at이 다르면 자기 해시도 달라진다(기록 시각이 다른 별개 기록)
-    assert rec1["record_sha256"] == rec2["record_sha256"] or rec1["certified_at_utc"] == rec2["certified_at_utc"]
     payload = {k: v for k, v in rec1.items() if k != "record_sha256"}
     assert rec1["record_sha256"] == hashlib.sha256(
         json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")

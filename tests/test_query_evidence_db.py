@@ -61,7 +61,18 @@ def test_readonly_connection_blocks_writes(evidence_db):
 
 
 def test_residual_keyword_found_after_delete(evidence_db):
-    """회귀: 삭제한 레코드의 문자열이 페이지 잔존 바이트에서 발견되어야 한다."""
+    """회귀: 삭제한 레코드의 문자열이 페이지 잔존 바이트에서 발견되어야 한다.
+
+    secure_delete가 켜진 sqlite 빌드는 삭제 시 내용을 0으로 덮어 쓰므로
+    전제 자체가 성립하지 않는다 — 그 플랫폼에서는 스킵한다(도구는 흔적을
+    '찾을 수 있으면' 보고하는 설계이고, 못 찾는 것이 부존재 증명은 아니다).
+    """
+    probe = sqlite3.connect(str(evidence_db))
+    secure = probe.execute("PRAGMA secure_delete").fetchone()[0]
+    probe.close()
+    if secure:
+        pytest.skip("이 sqlite 빌드는 secure_delete=ON — 잔존 바이트 전제가 성립하지 않음")
+
     conn = sqlite3.connect(str(evidence_db))
     conn.execute("DELETE FROM messages WHERE sender = '이영희'")
     conn.commit()
