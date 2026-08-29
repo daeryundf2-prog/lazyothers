@@ -9,10 +9,11 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 
 ## 핵심 도구
 
-- **`korean_law` MCP 도구 (optional — `lazyforensic` 플러그인 필요):**
-  - `search_statutes(query)`: 법령 본문 및 조문 검색
-  - `search_precedents(query)`: 대법원 및 하급심 판례 요지 검색
-  - `get_statute_article(law_name, article_num)`: 특정 법률 조항 상세 조회
+- **`korean_law` MCP 도구 (optional — `lazyforensic` 플러그인 필요, 실제 등록 도구명 기준):**
+  - `search_law`: 법령 검색 (정확매칭 + 개정 이력, 법령 MST 반환)
+  - `get_law_text`: 법령 MST의 본문·조문 전문 조회
+  - `search_decisions` / `get_decision_text`: 판례 검색 및 판결문 전문 조회
+  - 기타: `ordinance_radar`, `get_annexes`, `legal_research`, `legal_analysis`, `discover_tools`, `execute_tool` (총 10개)
 
 > `lazyforensic` 미설치시 이 스킬은 비활성화됨. `mcp_config.json`의 `korean_law`는 `${PLUGIN_ROOT}/../lazyforensic/korean-law-mcp/build/index.js` 상대경로로 설정, `optional: true`.
 
