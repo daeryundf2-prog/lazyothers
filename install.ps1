@@ -49,16 +49,29 @@ foreach ($name in $repos.Keys) {
 }
 
 # 2. Build LazyAntigravity (if Node.js available)
+# 주의: PowerShell 5.1에서는 네이티브 명령(npm/git)의 non-zero exit이
+# $ErrorActionPreference="Stop"이어도 catch로 들어오지 않으므로 $LASTEXITCODE를 직접 검사한다.
 if (Get-Command npm -ErrorAction SilentlyContinue) {
-    Write-Host "Building LazyAntigravity..." -ForegroundColor Green
-    Push-Location "$pluginDir\lazyantigravity"
-    try {
-        npm install
-        npm run build
-    } catch {
-        Write-Host "  [!] Build failed: $_" -ForegroundColor Red
-    } finally {
-        Pop-Location
+    if (Test-Path "$pluginDir\lazyantigravity\package.json") {
+        Write-Host "Building LazyAntigravity..." -ForegroundColor Green
+        Push-Location "$pluginDir\lazyantigravity"
+        try {
+            npm install
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [!] LazyAntigravity npm install failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            } else {
+                npm run build
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "  [!] LazyAntigravity build failed (exit $LASTEXITCODE)" -ForegroundColor Red
+                }
+            }
+        } catch {
+            Write-Host "  [!] Build failed: $_" -ForegroundColor Red
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Host "[!] lazyantigravity not cloned — skipping build" -ForegroundColor Yellow
     }
 } else {
     Write-Host "[!] npm not found, skipping build step" -ForegroundColor Yellow
@@ -66,28 +79,46 @@ if (Get-Command npm -ErrorAction SilentlyContinue) {
 
 # 3. Setup LazyOthers (Sync MCP tools)
 if (Test-Path "$pluginDir\lazyothers\package.json") {
-    Write-Host "Syncing LazyOthers MCP tools..." -ForegroundColor Green
-    Push-Location "$pluginDir\lazyothers"
-    try {
-        npm run setup
-    } catch {
-        Write-Host "  [!] Sync failed: $_" -ForegroundColor Red
-    } finally {
-        Pop-Location
+    if (Get-Command npm -ErrorAction SilentlyContinue) {
+        Write-Host "Syncing LazyOthers MCP tools..." -ForegroundColor Green
+        Push-Location "$pluginDir\lazyothers"
+        try {
+            npm run setup
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [!] Sync failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "  [!] Sync failed: $_" -ForegroundColor Red
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Host "[!] npm not found, skipping LazyOthers sync" -ForegroundColor Yellow
     }
 }
 
 # 3.5 Build korean-law-mcp (lazyforensic-, optional)
 if (Test-Path "$pluginDir\lazyforensic-\korean-law-mcp\package.json") {
-    Write-Host "Building korean-law-mcp (lazyforensic-)..." -ForegroundColor Green
-    Push-Location "$pluginDir\lazyforensic-\korean-law-mcp"
-    try {
-        npm install
-        npm run build
-    } catch {
-        Write-Host "  [!] korean-law-mcp build failed: $_" -ForegroundColor Red
-    } finally {
-        Pop-Location
+    if (Get-Command npm -ErrorAction SilentlyContinue) {
+        Write-Host "Building korean-law-mcp (lazyforensic-)..." -ForegroundColor Green
+        Push-Location "$pluginDir\lazyforensic-\korean-law-mcp"
+        try {
+            npm install
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [!] korean-law-mcp npm install failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            } else {
+                npm run build
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "  [!] korean-law-mcp build failed (exit $LASTEXITCODE)" -ForegroundColor Red
+                }
+            }
+        } catch {
+            Write-Host "  [!] korean-law-mcp build failed: $_" -ForegroundColor Red
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Host "[!] npm not found, skipping korean-law-mcp build" -ForegroundColor Yellow
     }
 }
 
@@ -97,6 +128,9 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     Push-Location "$pluginDir\lazyothers"
     try {
         python -m pip install -r requirements.txt
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [!] pip install failed (exit $LASTEXITCODE)" -ForegroundColor Red
+        }
     } catch {
         Write-Host "  [!] pip install failed: $_" -ForegroundColor Red
     } finally {
@@ -122,23 +156,41 @@ $defaultConfig = @{
     }
 }
 
+# BOM 없는 UTF-8로 기록한다. Windows PowerShell 5.1의 Set-Content -Encoding UTF8은
+# BOM을 붙여서, BOM을 허용하지 않는 파서(Python json.load, Node JSON.parse 등)가
+# config.json을 읽지 못하게 될 수 있다.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+function Write-ConfigFile {
+    param([string]$Path, [string]$Content)
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
 if (Test-Path $configPath) {
     try {
-        $existingJson = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
-        if (-not $existingJson.plugins) { $existingJson.plugins = @{} }
+        # 주의: ConvertFrom-Json -AsHashtable은 PS 7+ 전용. PS 5.1에서는 PSCustomObject로
+        # 병합해야 하며, -AsHashtable을 쓰면 병합이 항상 실패해 기존 설정이 기본값으로 덮어써졌다.
+        $existingJson = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not ($existingJson.PSObject.Properties['plugins'])) {
+            $existingJson | Add-Member -MemberType NoteProperty -Name plugins -Value ([pscustomobject]@{})
+        }
         foreach ($k in $defaultConfig.plugins.Keys) {
-            $existingJson.plugins[$k] = $defaultConfig.plugins[$k]
+            $enabled = $defaultConfig.plugins[$k].enabled
+            if ($existingJson.plugins.PSObject.Properties[$k]) {
+                $existingJson.plugins.$k | Add-Member -MemberType NoteProperty -Name enabled -Value $enabled -Force
+            } else {
+                $existingJson.plugins | Add-Member -MemberType NoteProperty -Name $k -Value ([pscustomobject]@{ enabled = $enabled })
+            }
         }
         $mergedJson = $existingJson | ConvertTo-Json -Depth 10
-        Set-Content -Path $configPath -Value $mergedJson -Encoding UTF8
+        Write-ConfigFile -Path $configPath -Content $mergedJson
         Write-Host "  Merged plugins into existing config.json" -ForegroundColor Green
     } catch {
         Write-Host "  [!] Failed to merge config, backing up and writing default: $_" -ForegroundColor Yellow
         Copy-Item $configPath "$configPath.bak" -Force -ErrorAction SilentlyContinue
-        $defaultConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding UTF8
+        Write-ConfigFile -Path $configPath -Content ($defaultConfig | ConvertTo-Json -Depth 10)
     }
 } else {
-    $defaultConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding UTF8
+    Write-ConfigFile -Path $configPath -Content ($defaultConfig | ConvertTo-Json -Depth 10)
     Write-Host "  Created new config.json" -ForegroundColor Green
 }
 

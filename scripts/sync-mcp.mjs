@@ -60,6 +60,22 @@ try {
   console.warn(`[lazyothers:sync] Could not validate mcp_config.json: ${e.message}`);
 }
 
+// Validate package.json / plugin.json version consistency — 두 파일이 중복 관리되므로
+// 어느 한쪽만 bump되어 배포되는 사고를 설치 시점에 잡는다.
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(pluginRoot, "package.json"), "utf-8"));
+  const plugin = JSON.parse(fs.readFileSync(path.join(pluginRoot, "plugin.json"), "utf-8"));
+  if (pkg.version !== plugin.version) {
+    console.warn(
+      `[lazyothers:sync] WARN: version mismatch — package.json=${pkg.version}, plugin.json=${plugin.version}. 두 파일을 함께 bump하세요.`
+    );
+  } else {
+    console.log(`[lazyothers:sync] Version check OK: ${pkg.version}`);
+  }
+} catch (e) {
+  console.warn(`[lazyothers:sync] Could not validate version consistency: ${e.message}`);
+}
+
 // Optional legacy mirror — skip if target parent does not exist
 try {
   if (fs.existsSync(path.dirname(legacyTarget))) {

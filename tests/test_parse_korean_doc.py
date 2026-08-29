@@ -105,3 +105,26 @@ def test_hwp_invalid_file_returns_error_dict(tmp_path):
     r = subprocess.run([sys.executable, str(SCRIPT), str(bad)], capture_output=True, text=True)
     assert r.returncode == 1
     assert "Error" in r.stderr
+
+
+def test_hwpx_table_text_not_duplicated_in_body(tmp_path):
+    """회귀: 표 셀 텍스트가 본문 text에 이중으로 들어가면 안 된다(표는 tables로 제공)."""
+    hwpx = _build_hwpx(tmp_path / "dedup.hwpx")
+    out = _run(hwpx)
+    assert "계약금" not in out["text"], "표 셀 텍스트가 본문 text에 중복됨"
+    assert out["tables"][0][1] == ["계약금", "0000원"], "표 데이터는 그대로 보존되어야 함"
+    # 표 바깥 문단은 여전히 text에 있어야 한다
+    assert "표준 네임스페이스 문단입니다" in out["text"]
+
+
+def test_pdf_invalid_file_tries_both_parsers(tmp_path):
+    """회귀: PyMuPDF가 ImportError가 아닌 예외로 실패해도 pypdf 폴백을 시도하고,
+    둘 다 실패하면 두 파서의 오류 사유가 모두 담긴 error dict를 반환한다."""
+    bad = tmp_path / "garbage.pdf"
+    bad.write_bytes(b"this is definitely not a pdf file at all")
+    r = subprocess.run([sys.executable, str(SCRIPT), str(bad)], capture_output=True, text=True)
+    assert r.returncode == 1
+    assert "Error" in r.stderr
+    # 폴백 체인이 실제로 양쪽을 모두 시도했는지 오류 메시지로 확인
+    assert "PyMuPDF failed" in r.stderr, "PyMuPDF 실패 사유가 포함되어야 함"
+    assert "pypdf failed" in r.stderr, "pypdf 폴백이 시도되었어야 함"

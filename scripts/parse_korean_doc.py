@@ -91,14 +91,25 @@ def parse_hwpx(file_path: str) -> dict:
                 print(f"[WARN] Failed to parse {s_file}: {e}", file=sys.stderr)
                 continue
 
-            # 텍스트 추출 (hp:t 태그 — 네임스페이스 무관)
-            texts = [elem.text for elem in _findall_local(tree, "t") if elem.text]
+            # 표 추출 대상을 먼저 수집 — 본문 텍스트에서 표 셀 내용은 제외해 중복 방지
+            # (표 내용은 result["tables"]로 별도 제공되므로 text + tables 합이 전체 커버리지)
+            table_roots = _findall_local(tree, "tbl")
+            in_table = set()
+            for tbl in table_roots:
+                for el in tbl.iter():
+                    in_table.add(id(el))
+
+            # 텍스트 추출 (hp:t 태그 — 네임스페이스 무관, 표 내부 hp:t 제외)
+            texts = [
+                el.text for el in _findall_local(tree, "t")
+                if el.text and id(el) not in in_table
+            ]
             sec_text = "\n".join(texts)
             result["sections"].append({"name": s_file, "text": sec_text})
             full_text_chunks.append(sec_text)
 
             # 표 추출 (hp:tbl 태그 — 네임스페이스 무관)
-            for tbl in _findall_local(tree, "tbl"):
+            for tbl in table_roots:
                 rows = []
                 for tr in [t for t in tbl.iter() if _local_name(t.tag) == "tr"]:
                     row_cells = []
@@ -116,7 +127,12 @@ def parse_hwpx(file_path: str) -> dict:
 
 
 def parse_hwp_legacy(file_path: str) -> dict:
-    """구형 HWP (v5.0) 파서 (hwp-hwpx-parser 우선, olefile raw 스트림 fallback)."""
+    """구형 HWP (v5.0) 파서 (hwp-hwpx-parser 우선, olefile raw 스트림 fallback).
+
+    hwp-hwpx-parser가 ImportError가 아니라 개별 파일에서 실패해도 OLE 폴백을
+    시도하고, 둘 다 실패하면 두 오류를 합쳐 반환한다.
+    """
+    primary_error = None
     # 우선: hwp-hwpx-parser (PyPI, 순수 파이썬 — HWP5Reader API)
     try:
         from hwp_hwpx_parser import HWP5Reader
@@ -141,13 +157,9 @@ def parse_hwp_legacy(file_path: str) -> dict:
     except ImportError:
         pass  # 패키지 미설치 — olefile fallback으로 진행
     except Exception as e:
-        return {
-            "file_path": file_path,
-            "format": "HWP 5.0 (Binary)",
-            "error": f"hwp-hwpx-parser failed: {str(e)}",
-        }
+        primary_error = f"hwp-hwpx-parser failed: {str(e)}"
 
-    # Fallback: olefile 사용 (hwp-hwpx-parser 미설치 시 원시 스트림 디컴프레션)
+    # Fallback: olefile 사용 (hwp-hwpx-parser 미설치 또는 실패 시 원시 스트림 디컴프레션)
     try:
         import olefile
         import zlib
@@ -165,22 +177,36 @@ def parse_hwp_legacy(file_path: str) -> dict:
             except Exception:
                 pass
         ole.close()
+        if not text_chunks and primary_error:
+            return {
+                "file_path": file_path,
+                "format": "HWP 5.0",
+                "error": f"{primary_error}; OLE fallback produced no readable text",
+            }
         return {
             "file_path": file_path,
             "format": "HWP 5.0 (OLE Fallback)",
             "text": "\n".join(text_chunks),
-            "metadata": {"note": "Extracted via raw OLE stream decompression"}
+            "metadata": {
+                "note": "Extracted via raw OLE stream decompression",
+                "quality": "rough — 레코드 구조를 해석하지 않는 휴리스틱 추출이므로 깨진 문자가 남을 수 있고 표/개요 등 구조는 유실됨. 정확한 추출이 필요하면 pip install hwp-hwpx-parser",
+            },
         }
     except Exception as e:
+        prefix = f"{primary_error}; " if primary_error else ""
         return {
             "file_path": file_path,
             "format": "HWP 5.0",
-            "error": f"Failed to parse HWP. Install hwp-hwpx-parser or olefile: {str(e)}"
+            "error": f"{prefix}Failed to parse HWP via OLE fallback: {str(e)} (install hwp-hwpx-parser or olefile)"
         }
 
 
 def parse_pdf(file_path: str) -> dict:
-    """PDF 텍스트 및 표 추출 (PyMuPDF 우선, 실패시 pdfminer/pypdf fallback)."""
+    """PDF 텍스트 및 표 추출 (PyMuPDF 우선, 실패시 pypdf fallback).
+
+    ImportError뿐 아니라 실행 중 예외(손상 파일 등)가 나도 pypdf 폴백을
+    시도하고, 둘 다 실패하면 두 오류 사슬을 함께 반환한다.
+    """
     result = {
         "file_path": file_path,
         "format": "PDF",
@@ -189,6 +215,7 @@ def parse_pdf(file_path: str) -> dict:
         "tables": [],
         "metadata": {}
     }
+    errors = []
     # Try PyMuPDF
     try:
         import fitz
@@ -204,9 +231,9 @@ def parse_pdf(file_path: str) -> dict:
         doc.close()
         return result
     except ImportError:
-        pass
+        errors.append("pymupdf not installed")
     except Exception as e:
-        return {"file_path": file_path, "format": "PDF", "error": f"PyMuPDF failed: {e}"}
+        errors.append(f"PyMuPDF failed: {e}")
 
     # Fallback: pypdf
     try:
@@ -227,14 +254,14 @@ def parse_pdf(file_path: str) -> dict:
         result["text"] = "\n\n".join(chunks)
         return result
     except ImportError:
-        pass
+        errors.append("pypdf not installed")
     except Exception as e:
-        return {"file_path": file_path, "format": "PDF", "error": f"pypdf failed: {e}"}
+        errors.append(f"pypdf failed: {e}")
 
     return {
         "file_path": file_path,
         "format": "PDF",
-        "error": "No PDF parser available. Install pymupdf (pip install pymupdf) or pypdf (pip install pypdf)."
+        "error": "; ".join(errors) + ". Install pymupdf (pip install pymupdf) or pypdf (pip install pypdf)."
     }
 
 

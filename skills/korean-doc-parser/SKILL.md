@@ -11,9 +11,9 @@ description: "한국 공문서(HWP, HWPX, PDF) 텍스트, 표, 메타데이터 �
 
 - **스크립트:** `python ${PLUGIN_ROOT}/scripts/parse_korean_doc.py <파일경로> [--markdown] [--output <결과경로>]`
 - **지원 포맷:**
-  - `HWPX`: OWPML ZIP/XML 구조 파싱 (섹션별 본문, 표, 서식 메타데이터) — 의존성 없음. 네임스페이스 무관 로컬 이름 매칭이라 한컴 버전과 무관하게 동작.
-  - `HWP 5.0`: `hwp-hwpx-parser`(HWP5Reader) 우선, 미설치 시 `olefile` 원시 스트림 폴백.
-  - `PDF`: 텍스트층 추출 — `pymupdf` (권장) 또는 `pypdf`. 스캔본(이미지 PDF)은 텍스트가 비어 나오므로 별도 OCR 도구가 필요합니다 (roadmap: docling 연동).
+  - `HWPX`: OWPML ZIP/XML 구조 파싱 (섹션별 본문, 표, 서식 메타데이터) — 의존성 없음. 네임스페이스 무관 로컬 이름 매칭이라 한컴 버전과 무관하게 동작. 본문 `text`는 표 셀 내용을 제외하며, 표는 `tables` 필드로 별도 제공(중복 없음).
+  - `HWP 5.0`: `hwp-hwpx-parser`(HWP5Reader) 우선, 미설치 또는 파싱 실패 시 `olefile` 원시 스트림 폴백. 폴백은 레코드 구조를 해석하지 않는 **휴리스틱 추출**이라 깨진 문자가 남고 표/개요 구조는 유실됨 — 결과 JSON의 `metadata.quality = "rough"`로 표시되며, 정확한 추출이 필요하면 `pip install hwp-hwpx-parser`.
+  - `PDF`: 텍스트층 추출 — `pymupdf` (권장), 실패/미설치 시 `pypdf` 폴백. 두 파서 모두 실패하면 양쪽 오류 사유를 함께 반환. 스캔본(이미지 PDF)은 텍스트가 비어 나오므로 별도 OCR 도구가 필요합니다 (roadmap: docling 연동).
   - `Docling OCR` (선택): 스캔본 PDF의 경우 `docling` 연동을 통한 CJK 고정밀 인식.
 
 ## 의존성

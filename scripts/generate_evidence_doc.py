@@ -55,10 +55,20 @@ def resolve_evidence_hashes(evidence_list: list, base_dir: str = ""):
             item["sha256"] = "N/A (file not found)"
 
 
-def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path: str):
-    """표준 증거설명서 마크다운 생성"""
+SAMPLE_BANNER = (
+    "> ⚠️ **[샘플 자동 생성본 — 법원 제출 금지]** 실제 증거 목록이 입력되지 않아 "
+    "샘플 플레이스홀더로 생성된 문서입니다. `--input-json`으로 실제 증거 목록을 "
+    "입력해 다시 생성하기 전까지 어떠한 경우에도 제출하지 마십시오."
+)
+
+
+def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path: str, is_sample: bool = False):
+    """표준 증거설명서 마크다운 생성 (is_sample=True면 본문 머리/끝에 제출 방지 배너)"""
     lines = []
     lines.append("# 증 거 설 명 서\n")
+    if is_sample:
+        lines.append(SAMPLE_BANNER)
+        lines.append("")
     lines.append(f"**사 건:** {_escape_cell(case_info.get('case_number', '202X가합XXXX호'))} {_escape_cell(case_info.get('case_name', '손해배상(기) 등'))}")
     lines.append(f"**원 고:** {_escape_cell(case_info.get('plaintiff', '홍길동'))}")
     lines.append(f"**피 고:** {_escape_cell(case_info.get('defendant', '주식회사 XXX'))}\n")
@@ -83,6 +93,8 @@ def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path
     lines.append(f"\n**작성일자:** {datetime.now().strftime('%Y년 %m월 %d일')}")
     lines.append(f"**제출인:** {_escape_cell(case_info.get('submitter', '원고 소송대리인'))}")
     lines.append(f"**{_escape_cell(case_info.get('court', '서울중앙지방법원'))} 귀중**\n")
+    if is_sample:
+        lines.append(SAMPLE_BANNER)
 
     content = "\n".join(lines)
     out_dir = os.path.dirname(os.path.abspath(output_path))
@@ -119,21 +131,27 @@ def main(argv=None):
             print("[WARN] Using built-in sample data — replace before court submission!", file=sys.stderr)
             evidence_list = []
         else:
-            with open(args.input_json, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, dict):
-                    case_info.update(data.get("case_info", {}))
-                    evidence_list = data.get("evidence_list", [])
-                elif isinstance(data, list):
-                    evidence_list = data
-                else:
-                    print(f"[WARN] Unexpected JSON root type: {type(data)}", file=sys.stderr)
+            try:
+                with open(args.input_json, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                print(f"[WARN] Failed to parse input JSON ({e}) — using sample data.", file=sys.stderr)
+                data = None
+            if isinstance(data, dict):
+                case_info.update(data.get("case_info", {}))
+                evidence_list = data.get("evidence_list", [])
+            elif isinstance(data, list):
+                evidence_list = data
+            elif data is not None:
+                print(f"[WARN] Unexpected JSON root type: {type(data)}", file=sys.stderr)
 
     # 상대 경로는 input-json 위치 기준으로 해석해 전체 SHA-256을 채운다
     base_dir = os.path.dirname(os.path.abspath(args.input_json)) if args.input_json else ""
     resolve_evidence_hashes(evidence_list, base_dir)
 
+    using_sample = False
     if not evidence_list:
+        using_sample = True
         if args.input_json:
             print("[WARN] evidence_list is empty — generating sample placeholder. DO NOT submit as-is.", file=sys.stderr)
         else:
@@ -155,7 +173,7 @@ def main(argv=None):
             }
         ]
 
-    generate_evidence_markdown(case_info, evidence_list, args.output)
+    generate_evidence_markdown(case_info, evidence_list, args.output, is_sample=using_sample)
 
 
 if __name__ == "__main__":

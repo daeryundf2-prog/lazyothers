@@ -74,3 +74,40 @@ def test_first_only_flag(tmp_path):
     doc.close()
     assert LABEL in p0
     assert LABEL not in p1
+
+
+def test_long_label_fits_in_dynamically_sized_box(tmp_path):
+    """회귀: 고정 110pt 박스에서 조용히 누락되던 긴 라벨이 동적 폭 계산으로 렌더링되어야 한다."""
+    font = stamp_evidence._get_korean_font()
+    if font is None:
+        pytest.skip("Korean font not available on this machine")
+
+    long_label = "을 제10호증의 3 (원본 대조필)"
+    src = _make_pdf(tmp_path / "src.pdf")
+    out = tmp_path / "long.pdf"
+    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), long_label)
+
+    doc = fitz.open(str(out))
+    page0 = _norm(doc[0].get_text())
+    doc.close()
+    assert long_label in page0, f"Long label corrupted or dropped: {page0!r}"
+
+
+def test_box_width_estimate_grows_with_label():
+    """라벨이 길어질수록 박스 폭 추정치가 최소폭(110pt) 이상으로 늘어나야 한다."""
+    short = stamp_evidence._label_box_width("갑 제1호증")
+    long = stamp_evidence._label_box_width("을 제10호증의 3 (원본 대조필)")
+    assert short >= 110
+    assert long > short
+
+
+def test_tiny_page_degrades_gracefully(tmp_path):
+    """매우 작은 페이지에서도 크래시 없이 처리되어야 한다(표찰/Bates 스킵 경고만)."""
+    src = tmp_path / "tiny.pdf"
+    doc = fitz.open()
+    doc.new_page(width=60, height=60)
+    doc.save(src)
+    doc.close()
+
+    out = tmp_path / "tiny_stamped.pdf"
+    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), "갑 제1호증")

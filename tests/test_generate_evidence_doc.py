@@ -60,3 +60,35 @@ def test_explicit_sha256_respected(tmp_path):
     ged.main(["--input-json", str(input_json), "--output", str(output)])
     md = output.read_text(encoding="utf-8")
     assert "abc123" in md
+
+
+def test_sample_generation_carries_submission_ban_watermark(tmp_path):
+    """회귀: 실제 증거 JSON 없이 생성하면 본문에 제출 금지 워터마크가 들어가야 한다."""
+    output = tmp_path / "증거설명서.md"
+    ged.main(["--output", str(output)])
+    md = output.read_text(encoding="utf-8")
+    assert "법원 제출 금지" in md, "샘플 문서에 워터마크 배너가 없음"
+    assert "[SAMPLE]" in md
+
+
+def test_real_input_has_no_watermark(tmp_path):
+    """실제 증거 JSON으로 생성한 문서에는 워터마크가 없어야 한다."""
+    input_json = tmp_path / "evidence.json"
+    input_json.write_text(
+        '{"evidence_list": [{"label": "갑 제1호증", "title": "실제 증거", "sha256": "deadbeef"}]}',
+        encoding="utf-8",
+    )
+    output = tmp_path / "증거설명서.md"
+    ged.main(["--input-json", str(input_json), "--output", str(output)])
+    md = output.read_text(encoding="utf-8")
+    assert "법원 제출 금지" not in md
+
+
+def test_malformed_json_falls_back_to_sample_instead_of_crash(tmp_path):
+    """회귀: JSON 파싱 실패 시 트레이스백 크래시 대신 샘플+워터마크로 진행한다."""
+    input_json = tmp_path / "broken.json"
+    input_json.write_text("{ not valid json !!", encoding="utf-8")
+    output = tmp_path / "증거설명서.md"
+    ged.main(["--input-json", str(input_json), "--output", str(output)])
+    md = output.read_text(encoding="utf-8")
+    assert "법원 제출 금지" in md

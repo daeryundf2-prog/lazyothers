@@ -23,7 +23,18 @@ def _get_korean_font():
     return None
 
 
-def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True):
+def _label_box_width(label: str, fontsize: float = 11.0, min_width: float = 110.0) -> float:
+    """라벨이 박스 안에 들어가도록 폭을 추정한다.
+
+    한글/CJK 글리프는 대략 1em, 라틴/숫자/공백은 0.55em로 계산하고 좌우 여유를
+    더한다. 기존 고정 110pt에서는 '을 제10호증의 3' 같은 긴 라벨이
+    insert_textbox에서 rc<0으로 조용히 누락될 수 있었다.
+    """
+    em = sum(1.0 if ord(ch) > 0x2E7F else 0.55 for ch in label)
+    return max(min_width, em * fontsize + 18.0)
+
+
+def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True, right_margin: float = 25.0):
     """PyMuPDF(fitz)를 활용한 고품질 서증 라벨 및 Bates 번호 인자"""
     try:
         import fitz  # PyMuPDF
@@ -68,11 +79,11 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
         # 1. 서증 표찰 — 기본 전 페이지, --first-only 지정 시 첫 페이지만
         should_stamp = all_pages or idx == 0
         if should_stamp:
-            box_width = 110
             box_height = 24
-            box_x1 = rect.width - 25 - box_width
+            box_width = _label_box_width(label)
+            box_x1 = max(5.0, rect.width - right_margin - box_width)
+            box_x2 = min(rect.width - 5.0, rect.width - right_margin)
             box_y1 = 20
-            box_x2 = rect.width - 25
             box_y2 = box_y1 + box_height
 
             page.draw_rect(fitz.Rect(box_x1, box_y1, box_x2, box_y2), color=(0.8, 0, 0), width=1.5, fill=(1, 1, 1))
@@ -97,9 +108,11 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
                     inserted = False
             if not inserted:
                 print("[WARN] Korean font insert failed — falling back to helv (Hangul will break).", file=sys.stderr)
-                page.insert_textbox(
+                rc_fallback = page.insert_textbox(
                     text_rect, label, fontsize=11, fontname="helv", color=(0.8, 0, 0), align=fitz.TEXT_ALIGN_CENTER
                 )
+                if rc_fallback < 0:
+                    print(f"[WARN] Label '{label}' did not fit even in fallback box — label skipped (rc={rc_fallback:.2f})", file=sys.stderr)
 
         # 2. Bates 일련번호 — 단일 번호 (예: P-0001)
         # 주의: insert_textbox는 공간이 부족하면 예외 대신 음수를 반환하고 텍스트를
@@ -136,6 +149,7 @@ def main():
     parser.add_argument("--prefix", "-p", default="P", help="Bates 페이지 접두사 (기본: 'P')")
     parser.add_argument("--start", "-s", type=int, default=1, help="시작 페이지 번호 (기본: 1)")
     parser.add_argument("--first-only", action="store_true", help="첫 페이지만 표찰 (미지정 시 전 페이지 표찰)")
+    parser.add_argument("--margin", type=float, default=25.0, help="표찰 박스의 우측 여백(pt, 기본: 25) — 인장·전송표와 겹칠 때 조정")
 
     args = parser.parse_args()
 
@@ -152,6 +166,7 @@ def main():
         bates_prefix=args.prefix,
         start_page=args.start,
         all_pages=all_pages,
+        right_margin=args.margin,
     )
 
     if not success:
