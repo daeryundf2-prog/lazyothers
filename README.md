@@ -1,4 +1,4 @@
-# LazyOthers (v0.4.0)
+# LazyOthers (v0.5.0)
 
 Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP/HWPX), 한국어 AI 윤문(Humanize KR) 및 확장 MCP 도구 모음** 플러그인입니다.
 
@@ -18,6 +18,8 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
     *   표찰 박스 폭은 라벨 길이에 맞춰 자동 계산되고, `--margin`으로 우측 여백을 조정할 수 있습니다(인장·전송표와 겹칠 때).
     *   증거설명서는 실제 증거 JSON 없이 생성하면 본문 머리/끝에 **"[샘플 자동 생성본 — 법원 제출 금지]"** 워터마크가 들어갑니다.
 *   **`legal-case-search`**: 국가법령정보센터 Open API 및 대법원 판례 시맨틱 검색. (`lazyforensic` 플러그인 설치 시 활성화, optional)
+*   **`korean-pii-masker`**: 주민등록번호(체크섬 검증)·전화·계좌·이메일 자동 마스킹으로 제출본 비식별화. 날짜 오탐 방지, 처리 통계 리포트. (`scripts/mask_korean_pii.py`)
+*   **`court-ruling-analyzer`**: 판결문 섹션 분할(주문/이유/사실), 인용 법령 조문·선고 판례 전수 추출, 쟁점 요약표 골격 생성. (`scripts/analyze_court_ruling.py`)
 
 ### 3. 디지털 포렌식·증거 분석 (Forensic & Evidence)
 *   **`evidence-integrity-audit`**: 증거 폴더 전수 SHA-256/MD5/SHA-1 감사, 제출용 보고서 기재 해시와의 대조([일치/불일치/미측정] 판정표), 무결성 증명서(Chain of Custody Verification Sheet) 자동 생성. (`scripts/audit_evidence_integrity.py`)
@@ -27,15 +29,17 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 
 ### 4. 법률 문서 자동화 (Legal Drafting)
 *   **`legal-draft-builder`**: 사실관계 메모+증거 목록으로 소장·준비서면·고소장·내용증명 초안 생성 — 청구취지/청구원인 분리, 본문 증거 라벨 자동 인용(입증방법 결합), 변호사 검토 고지 강제. (`scripts/generate_legal_draft.py`)
+*   **`court-pdf-binder`**: 표찰된 서증 PDF를 호증별 북마크 트리로 병합하고, ECFS 용량 한계(50MB) 초과 시 자동 분할. 증거설명서 evidence.json 호환. (`scripts/bind_court_pdf.py`)
 
 ### 5. 확장 MCP 도구 모음 (Bundled MCP Tools)
 *   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.10.0 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
 *   **`context7`**: 공식 라이브러리 및 최신 프레임워크 실시간 문서 조회 — Upstash 공식 패키지 (`npx -y @upstash/context7-mcp@4.0.4`, 버전 고정)
 *   **`playwright`**: 웹 자동화·채증 — 게시물·SNS·기사 스크린샷/PDF 캡처 (microsoft `@playwright/mcp@0.0.79`, 버전 고정). 캡처 직후 `certify_evidence_file.py`로 인증
+*   **`sequential-thinking`**: 순차적 심층 추론 — 포렌식 인과관계 역추적·다층 쟁점 분석 (modelcontextprotocol 공식 서버 `@modelcontextprotocol/server-sequential-thinking@2026.7.4`, 버전 고정)
 *   **`grep_app`** *(manifest-only)*: GitHub 코드 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/grep_app/` 스펙만 보관 중 (로드맵)
 *   **`xds`** *(manifest-only)*: Astryx XDS 디자인시스템 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/xds/` 스펙만 보관 중 (로드맵)
 
-> MCP 등록: `plugin.json` → `mcp_config.json` 4개 서버 (kordoc/context7/playwright + optional korean_law). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
+> MCP 등록: `plugin.json` → `mcp_config.json` 5개 서버 (kordoc/context7/playwright/sequential-thinking + optional korean_law). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
 
 ---
 

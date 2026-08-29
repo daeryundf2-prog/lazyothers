@@ -15,6 +15,11 @@
       "args": ["-y", "@playwright/mcp@0.0.79"],
       "description": "웹 자동화·채증 (microsoft playwright-mcp, 버전 고정 0.0.79) — 게시물·SNS·기사 스크린샷/PDF 캡처. 캡처 직후 scripts/certify_evidence_file.py로 URL·시각·해시를 결합해 증거 기록을 만든다"
     },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking@2026.7.4"],
+      "description": "순차적 심층 추론 (modelcontextprotocol 공식 서버, 버전 고정 2026.7.4) — 포렌식 인과관계 역추적·다층 법률 쟁점 분석에서 단계별 가설 검증에 사용. 실행은 로컬 노드로만 이뤄진다"
+    },
     "korean_law": {
       "command": "node",
       "args": ["${PLUGIN_ROOT}/../lazyforensic/korean-law-mcp/build/index.js"],
