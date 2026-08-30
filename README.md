@@ -31,7 +31,14 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 *   **`legal-draft-builder`**: 사실관계 메모+증거 목록으로 소장·준비서면·고소장·내용증명 초안 생성 — 청구취지/청구원인 분리, 본문 증거 라벨 자동 인용(입증방법 결합), 변호사 검토 고지 강제. (`scripts/generate_legal_draft.py`)
 *   **`court-pdf-binder`**: 표찰된 서증 PDF를 호증별 북마크 트리로 병합하고, ECFS 용량 한계(50MB) 초과 시 자동 분할. 증거설명서 evidence.json 호환. (`scripts/bind_court_pdf.py`)
 
-### 5. 확장 MCP 도구 모음 (Bundled MCP Tools)
+### 5. 개발자 자원 및 트렌드 허브 (Developer Resources Hub)
+*   **`developer-resources`**: 개발자를 위한 4대 자원 디렉터리(`free-for-dev`, `public-apis.io`, `daily-dev`, `devresourc.es`) 통합 검색 및 추천 스킬. (`scripts/query_dev_resources.py`)
+    *   **free-for-dev**: 무료 PaaS/SaaS, Cloud Hosting(Vercel/Netlify/Render/Cloudflare), Database(Supabase/Neon/Turso/Upstash), Auth(Clerk), Email(Resend), AI(Groq)
+    *   **public-apis.io**: 공개 API 카테고리별 검증 목록 (Auth 타입, HTTPS, CORS 지원 표기)
+    *   **daily-dev**: 트렌딩 오픈소스, GitHub Trending, 기술 블로그 및 개발 뉴스 피드
+    *   **devresourc.es**: UI 컴포넌트(shadcn/ui), 벡터 아이콘(Lucide), 색상 팔레트(Realtime Colors), Tailwind/Git 치트시트 모음
+
+### 6. 확장 MCP 도구 모음 (Bundled MCP Tools)
 *   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.10.0 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
 *   **`context7`**: 공식 라이브러리 및 최신 프레임워크 실시간 문서 조회 — Upstash 공식 패키지 (`npx -y @upstash/context7-mcp@4.0.4`, 버전 고정)
 *   **`playwright`**: 웹 자동화·채증 — 게시물·SNS·기사 스크린샷/PDF 캡처 (microsoft `@playwright/mcp@0.0.79`, 버전 고정). 캡처 직후 `certify_evidence_file.py`로 인증
