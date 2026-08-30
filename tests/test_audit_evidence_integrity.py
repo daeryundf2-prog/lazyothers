@@ -103,3 +103,40 @@ def test_multi_algorithm_audit(evidence):
     hashes = result["records"][0]["hashes"]
     assert set(hashes) == {"sha256", "md5", "sha1"}
     assert len(hashes["sha256"]) == 64 and len(hashes["md5"]) == 32 and len(hashes["sha1"]) == 40
+
+
+# ── 짝이변·TOCTOU 회귀 ──────────────────────────────────────────────
+
+def test_swapped_hashes_detected_as_mismatch(tmp_path):
+    # 보고서가 두 파일의 해시를 서로 바꿔 적은 경우 — 과거에는 둘 다 '일치'로
+    # 통과했다. 파일명 근처의 해시로만 판정해야 짝이변이 잡힌다.
+    a = tmp_path / "a.pdf"; a.write_bytes(b"AAA")
+    b = tmp_path / "b.pdf"; b.write_bytes(b"BBB")
+    ha = aei.compute_hash(str(a), "sha256")
+    hb = aei.compute_hash(str(b), "sha256")
+    report = (
+        "| 파일 | SHA-256 |\n"
+        f"| a.pdf | `{hb}` |\n"
+        f"| b.pdf | `{ha}` |\n"
+    )
+    result = aei.audit([str(a), str(b)], ["sha256"], report)
+    verdicts = {r["name"]: r["verdict"] for r in result["records"]}
+    assert verdicts[str(a)] == "불일치", "짝이변은 불일치로 나와야 한다"
+    assert verdicts[str(b)] == "불일치"
+
+
+def test_correct_pairing_still_matches(tmp_path):
+    a = tmp_path / "a.pdf"; a.write_bytes(b"AAA")
+    ha = aei.compute_hash(str(a), "sha256")
+    report = f"| 파일 | SHA-256 |\n| a.pdf | `{ha}` |\n"
+    result = aei.audit([str(a)], ["sha256"], report)
+    assert result["records"][0]["verdict"] == "일치"
+
+
+def test_hash_present_without_filename_marked_caution(tmp_path):
+    # 해시는 보고서에 있지만 파일명이 없으면 대응 미확인 — '주의'로 남긴다.
+    a = tmp_path / "a.pdf"; a.write_bytes(b"AAA")
+    ha = aei.compute_hash(str(a), "sha256")
+    result = aei.audit([str(a)], ["sha256"], f"부록: `{ha}` (파일명 미기재)")
+    assert result["records"][0]["verdict"] == "주의"
+    assert result["summary"]["주의"] == 1

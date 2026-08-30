@@ -15,7 +15,7 @@ description: "압수 SQLite DB(메신저 백업·앱 데이터·브라우저 히
 # 1. 스키마 파악 (테이블·열·행 수)
 python ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db --list-schema
 
-# 2. SQL 추출 — SELECT/PRAGMA/EXPLAIN/WITH만 허용 (mode=ro 이중 잠금)
+# 2. SQL 추출 — SELECT/PRAGMA/EXPLAIN/WITH만 허용 (mode=ro + 문장 검사 3중 잠금)
 python ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db \
     --sql "SELECT datetime(ts,'unixepoch','localtime'), sender, content FROM messages ORDER BY ts LIMIT 200"
 
@@ -30,8 +30,10 @@ SQL로 번역**해 `--sql`로 넘긴다. 번역된 SQL과 결과 건수를 사�
 
 ## 안전 규율
 
-- **읽기전용 이중 잠금**: 파일은 `mode=ro`로 열리고, DELETE/UPDATE/INSERT/
-  ATTACH 등은 문장 검사 단계에서 거부된다. 원본을 복사해 분석하더라도 동일
+- **읽기전용 3중 잠금**: (1) 파일은 `mode=ro`로 열려 SQLite 수준에서 쓰기가
+  차단되고, (2) DELETE/UPDATE/INSERT/ATTACH 등은 접두어 검사에서 거부되며,
+  (3) WITH 접두 문에 변경 구문이 숨어 있으면(CTE 부착 DELETE 등) 본문 스캔으로
+  거부된다. 실 enforcement는 (1)이며 (2)(3)은 깊이방어다. 원본을 복사해 분석하더라도 동일
   규율이 적용된다.
 - **흔적 검색은 복구가 아니다**: 잔존 바이트 발견은 "삭제 전 해당 문자열이
   있었다"는 참고 정보다. VACUUM·secure_delete로 덮였으면 못 찾고, 못 찾은

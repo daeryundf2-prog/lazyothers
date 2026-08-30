@@ -5,8 +5,10 @@
 추출하고, 삭제된 레코드가 페이지에 남긴 잔존 흔적을 키워드로 검색한다.
 
 규율:
-- **읽기전용 강제.** DB는 file:...?mode=ro 로 열고, SELECT/PRAGMA/EXPLAIN/WITH
-  이외의 문은 실행을 거부한다. 증거 원본을 훼손하지 않는다.
+- **읽기전용 강제 (3중).** (1) DB는 file:...?mode=ro 로 열어 SQLite 수준에서
+  쓰기를 원천 차단하고, (2) SELECT/PRAGMA/EXPLAIN/WITH 이외의 문은 접두어
+  검사로 거부하며, (3) WITH로 시작하는 문은 본문에 DELETE/INSERT/UPDATE 같은
+  변경 구문이 있으면 거부한다(SQLite는 CTE 부착 변경을 허용하므로).
 - **흔적 검색은 복구가 아니다.** 잔존 스캔은 삭제된 레코드가 페이지에 남긴
   바이트를 찾을 뿐이며, VACUUM·secure_delete로 이미 지워졌으면 못 찾는다.
   "존재 증명"이 아니라 "부존재 증명도 아님" — 찾은 것만 보고한다.
@@ -29,17 +31,36 @@ import sys
 
 # 원본 훼손 방지 — 이 네 가지로 시작하는 문만 허용한다.
 _ALLOWED_PREFIXES = ("select", "pragma", "explain", "with")
+# SQLite는 CTE(WITH)에 DELETE/INSERT/UPDATE를 붙이는 것을 허용한다:
+#   WITH x AS (...) DELETE FROM t ...
+# 따라서 WITH로 시작하는 문은 본문에 변경 키워드가 있으면 무조건 거부한다.
+# (실 enforcement는 mode=ro이며, 이 검사는 깊이방어다.)
+_WITH_MUTATION_RE = re.compile(
+    r"\b(delete|insert|update|attach|detach|create|drop|alter|vacuum)\b", re.IGNORECASE
+)
 _SQL_COMMENT_RE = re.compile(r"(--[^\n]*|/\*.*?\*/)", re.DOTALL)
 _ENCODINGS = ("utf-8", "utf-16-le", "utf-16-be")
 _CONTEXT_BYTES = 60
 _CELL_LIMIT = 80
+_SCAN_CHUNK = 8 * 1024 * 1024  # 압수 DB가 GB급이어도 통째로 메모리에 올리지 않는다
 
 
 def open_readonly(db_path: str) -> sqlite3.Connection:
-    """증거 DB를 절대 쓰지 않는 모드로 연다. URI 상대경로 이스케이프 주의."""
-    abs_path = os.path.abspath(db_path).replace("?", "%3f").replace("#", "%23")
+    """증거 DB를 절대 쓰지 않는 모드로 연다. URI 상대경로 이스케이프 주의.
+
+    %를 먼저 이스케이프해야 한다 — SQLite URI는 %XX를 퍼센트 디코딩하므로,
+    경로에 %가 있으면("100%20증거.db") 먼저 %25로 만들지 않으면 엉뚱한
+    파일을 열거나 실패한다.
+    """
+    abs_path = os.path.abspath(db_path)
+    abs_path = abs_path.replace("%", "%25").replace("?", "%3f").replace("#", "%23")
     uri = f"file:{abs_path}?mode=ro"
     return sqlite3.connect(uri, uri=True)
+
+
+def _quote_ident(name: str) -> str:
+    """SQLite 식별자 인용. 압수 DB의 테이블명은 신뢰할 수 없다(공격자 통제 가능)."""
+    return '"' + name.replace('"', '""') + '"'
 
 
 def check_statement(sql: str) -> str:
@@ -52,6 +73,11 @@ def check_statement(sql: str) -> str:
         raise ValueError(
             f"금지된 문입니다: {first.upper()} — 읽기전용 증거 DB에는 "
             f"SELECT/PRAGMA/EXPLAIN/WITH만 허용됩니다"
+        )
+    if first == "with" and _WITH_MUTATION_RE.search(cleaned):
+        raise ValueError(
+            "금지된 문입니다: WITH 접두 문에 변경 구문(DELETE/INSERT/UPDATE 등)이 "
+            "포함되어 있습니다 — 읽기전용 증거 DB에서는 허용되지 않습니다"
         )
     return cleaned
 
@@ -71,8 +97,9 @@ def list_schema(conn: sqlite3.Connection) -> list[dict]:
     ]
     out: list[dict] = []
     for table in tables:
-        cols = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
-        count = conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+        ident = _quote_ident(table)
+        cols = conn.execute(f"PRAGMA table_info({ident})").fetchall()
+        count = conn.execute(f"SELECT COUNT(*) FROM {ident}").fetchone()[0]
         out.append({
             "table": table,
             "columns": [(c[1], c[2]) for c in cols],
@@ -90,47 +117,89 @@ def _printable_context(raw: bytes, start: int, length: int) -> str:
     return text.replace("\n", " ")
 
 
+def _sibling_label(path: str) -> str:
+    for suffix in ("-wal", "-journal"):
+        if path.endswith(suffix):
+            return os.path.basename(path) + f" ({suffix.strip('-')})"
+    return os.path.basename(path)
+
+
+def _context_at(path: str, offset: int, length: int) -> str:
+    """히트 1건의 주변 바이트를 파일에서 직접 읽어 컨텍스트를 만든다."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(max(0, offset - _CONTEXT_BYTES))
+            raw = f.read(length + 2 * _CONTEXT_BYTES)
+    except OSError:
+        return "(컨텍스트 읽기 실패)"
+    return _printable_context(raw, min(offset, _CONTEXT_BYTES), length)
+
+
+def _scan_file(path: str, prepared: list[tuple[str, list[tuple[str, bytes]]]],
+               max_needle: int, hits: list[dict], seen: set) -> None:
+    """파일을 청크로 읽으며 검색한다. 청크 경계에 걸친 needle은 tail+chunk
+    버퍼에서 잡히고, 절대 오프셋으로 중복을 제거한다."""
+    keep = max_needle + _CONTEXT_BYTES
+    with open(path, "rb") as f:
+        pos = 0  # 다음 buf[0]이 가리키는 파일 오프셋
+        tail = b""
+        while True:
+            chunk = f.read(_SCAN_CHUNK)
+            if not chunk:
+                break
+            buf = tail + chunk
+            base = pos - len(tail)
+            for keyword, needles in prepared:
+                for enc, needle in needles:
+                    start = 0
+                    while True:
+                        idx = buf.find(needle, start)
+                        if idx < 0:
+                            break
+                        key = (path, keyword, base + idx, enc)
+                        if key not in seen:
+                            seen.add(key)
+                            hits.append({
+                                "file": _sibling_label(path),
+                                "keyword": keyword,
+                                "encoding": enc,
+                                "offset": base + idx,
+                                "context": _context_at(path, base + idx, len(needle)),
+                            })
+                        start = idx + 1
+            tail = buf[-keep:]
+            pos += len(chunk)
+
+
 def scan_residual(db_path: str, keywords: list[str]) -> list[dict]:
     """파일 원시 바이트에서 키워드 잔존 흔적을 검색한다.
 
     본 파일과 -wal·-journal 동반 파일을 모두 본다. 삭제된 레코드가 아직
-    재사용되지 않은 페이지에 남아 있으면 발견된다.
+    재사용되지 않은 페이지에 남아 있으면 발견된다. GB급 압수 DB도 다룰 수
+    있도록 파일을 통째로 메모리에 올리지 않고 청크로 읽는다.
     """
     siblings = [db_path]
     for suffix in ("-wal", "-journal"):
         if os.path.exists(db_path + suffix):
             siblings.append(db_path + suffix)
 
+    prepared: list[tuple[str, list[tuple[str, bytes]]]] = []
+    max_needle = 1
+    for keyword in keywords:
+        needles = [(enc, keyword.encode(enc, errors="ignore")) for enc in _ENCODINGS]
+        needles = [(enc, n) for enc, n in needles if n]
+        if needles:
+            prepared.append((keyword, needles))
+            max_needle = max(max_needle, *(len(n) for _, n in needles))
+
     hits: list[dict] = []
     seen: set[tuple] = set()
     for path in siblings:
         try:
-            with open(path, "rb") as f:
-                raw = f.read()
+            _scan_file(path, prepared, max_needle, hits, seen)
         except OSError as exc:
             print(f"[WARN] 읽기 실패 {path}: {exc}", file=sys.stderr)
             continue
-        for keyword in keywords:
-            for enc in _ENCODINGS:
-                needle = keyword.encode(enc, errors="ignore")
-                if not needle:
-                    continue
-                start = 0
-                while True:
-                    idx = raw.find(needle, start)
-                    if idx < 0:
-                        break
-                    key = (path, keyword, idx, enc)
-                    if key not in seen:
-                        seen.add(key)
-                        hits.append({
-                            "file": os.path.basename(path) + (f" ({suffix.strip('-')})" if suffix and path.endswith(suffix) else ""),
-                            "keyword": keyword,
-                            "encoding": enc,
-                            "offset": idx,
-                            "context": _printable_context(raw, idx, len(needle)),
-                        })
-                    start = idx + 1
     hits.sort(key=lambda h: (h["file"], h["keyword"], h["offset"]))
     return hits
 
@@ -151,9 +220,19 @@ def rows_to_csv(columns: list[str], rows: list[list]) -> str:
     import io
     buf = io.StringIO()
     writer = csv.writer(buf)
+
+    def safe_cell(v) -> str:
+        s = str(v) if v is not None else ""
+        # 압수 DB의 셀 값은 공격자가 통제할 수 있다. 엑셀에서 열 때 수식으로
+        # 실행되는 값(=,+,@,탭 등)은 인용부호를 붙여 무력화한다. 음수는
+        # 일반 숫자(-123)로 판단되면 그대로 둔다.
+        if s and (s[0] in "=+@\t\r" or (s[0] == "-" and not re.match(r"^-\d+(\.\d+)?$", s))):
+            s = "'" + s
+        return s
+
     writer.writerow(columns)
     for row in rows:
-        writer.writerow([str(v) if v is not None else "" for v in row])
+        writer.writerow([safe_cell(v) for v in row])
     return buf.getvalue()
 
 

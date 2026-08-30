@@ -75,3 +75,84 @@ def test_main_writes_output_and_report(tmp_path):
     assert "901212-1******" in out.read_text(encoding="utf-8")
     assert "체크섬" in report.read_text(encoding="utf-8")
     assert mk.main([str(src), "--types", "bogus"]) == 2
+
+
+# ── 조사 접착 회귀 (P0: \b 경계는 한국어 조사에서 탐지를 실패했다) ──────
+
+def test_rrn_masked_with_particle_attached():
+    # "1234568임을"처럼 조사가 띄어쓰기 없이 붙어도 잡혀야 한다 —
+    # 실제 판결문/공문서에서 가장 흔한 문장형이다.
+    text = f"주민등록번호가 {VALID_RRN}임을 확인하였다."
+    masked, stats = mk.mask_text(text, {"rrn"})
+    assert VALID_RRN not in masked
+    assert "901212-1******임을 확인하였다." in masked
+    assert stats["rrn"] == 1
+
+
+def test_phone_masked_with_particle_attached():
+    masked, stats = mk.mask_text("피고는 010-1234-5678으로 전화하였다.", {"phone"})
+    assert "010-1234-****으로" in masked
+    assert stats["phone"] == 1
+
+
+def test_account_masked_with_particle_attached():
+    masked, stats = mk.mask_text("계좌 123-45-678901에서 송금하였다.", {"account"})
+    assert "123-45-******에서" in masked
+    assert stats["account"] == 1
+
+
+def test_email_masked_with_particle_attached():
+    masked, stats = mk.mask_text("회신은 hong@example.com으로 주시기 바랍니다.", {"email"})
+    assert "h**@example.com으로" in masked
+    assert stats["email"] == 1
+
+
+def test_longer_digit_run_not_masked_as_rrn():
+    # 더 긴 숫자열의 일부는 주민번호로 잡지 않는다.
+    masked, stats = mk.mask_text("등록번호 901212-12345689 는 14자리다", {"rrn"})
+    assert stats["rrn"] == 0
+    assert "901212-12345689" in masked
+
+
+# ── 외국인등록번호 (성별코드 5~8) ──────────────────────────────────
+
+def test_foreigner_number_masked():
+    text = "외국인등록번호 901212-5678901와 880301-7654321가 있다"
+    masked, stats = mk.mask_text(text, {"rrn"})
+    assert "901212-5******" in masked
+    assert "880301-7******" in masked
+    assert stats["rrn"] == 2
+
+
+def test_foreigner_number_masked_with_particle():
+    masked, _ = mk.mask_text("등록번호는 901212-5678901이다.", {"rrn"})
+    assert "901212-5******이다." in masked
+
+
+# ── 인코딩 (CP949 손실 방지) ────────────────────────────────────────
+
+def test_cp949_input_masked_and_encoding_preserved(tmp_path):
+    src = tmp_path / "bank.csv"
+    src.write_bytes(f"이름,주민번호,연락처\n홍길동,{VALID_RRN},010-1234-5678\n".encode("cp949"))
+    out = tmp_path / "masked.csv"
+    assert mk.main([str(src), "-o", str(out)]) == 0
+    decoded = out.read_bytes().decode("cp949")
+    assert "홍길동" in decoded, "CP949 본문이 U+FFFD로 훼손되면 안 된다"
+    assert "901212-1******" in decoded
+    assert "010-1234-****" in decoded
+
+
+def test_utf8_bom_input_preserved(tmp_path):
+    src = tmp_path / "bom.md"
+    src.write_bytes(b"\xef\xbb\xbf" + f"주민번호 {VALID_RRN}".encode("utf-8"))
+    out = tmp_path / "masked.md"
+    assert mk.main([str(src), "-o", str(out)]) == 0
+    assert out.read_bytes().startswith(b"\xef\xbb\xbf")
+    assert "901212-1******" in out.read_text(encoding="utf-8-sig")
+
+
+def test_undecodable_input_fails_closed(tmp_path):
+    # 어느 인코딩으로도 읽지 못하면 U+FFFD로 유실하는 대신 실패해야 한다.
+    src = tmp_path / "broken.bin"
+    src.write_bytes(b"\x80\x80\x80\x80")  # utf-8 연속 바이트, cp949 리드 바이트 범위 밖
+    assert mk.main([str(src), "-o", str(tmp_path / "out.txt")]) == 2

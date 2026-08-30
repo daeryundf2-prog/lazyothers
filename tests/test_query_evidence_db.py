@@ -108,3 +108,51 @@ def test_report_render_with_all_sections(evidence_db, tmp_path):
     md = out.read_text(encoding="utf-8")
     assert "스키마" in md and "쿼리 결과" in md and "잔존 흔적 검색" in md
     assert "복구 보장이 아니며" in md  # 한계 고지
+
+
+# ── 심화 하드닝 회귀 (WITH 우회·URI 이스케이프·식별자 인용·CSV 주입) ──
+
+def test_with_prefixed_mutation_rejected():
+    # SQLite는 CTE 부착 변경을 허용한다 — 접두어 화이트리스트만으로는 우회된다.
+    with pytest.raises(ValueError):
+        qe.check_statement("WITH x AS (SELECT 1) DELETE FROM messages")
+    with pytest.raises(ValueError):
+        qe.check_statement("with x as (select 1) insert into t select * from x")
+    with pytest.raises(ValueError):
+        qe.check_statement("WITH x AS (SELECT 1) UPDATE t SET a=1 /* note */")
+    # 정상 WITH SELECT는 통과한다
+    assert qe.check_statement("WITH x AS (SELECT 1) SELECT * FROM x").startswith("WITH")
+
+
+def test_open_readonly_escapes_percent_in_path(tmp_path):
+    d = tmp_path / "100%20증거 dir"
+    d.mkdir()
+    db = d / "evidence.db"
+    con = sqlite3.connect(str(db))
+    con.execute("CREATE TABLE t (a)")
+    con.commit()
+    con.close()
+    conn = qe.open_readonly(str(db))
+    assert conn.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 0
+    conn.close()
+
+
+def test_list_schema_quotes_hostile_table_name(tmp_path):
+    db = tmp_path / "evil.db"
+    con = sqlite3.connect(str(db))
+    con.execute('CREATE TABLE "we;ird""table" (a)')  # SQL 식별자 내 따옴표는 두 번
+    con.commit()
+    con.close()
+    conn = qe.open_readonly(str(db))
+    schema = qe.list_schema(conn)
+    conn.close()
+    assert schema[0]["table"] == 'we;ird"table'
+
+
+def test_csv_formula_injection_neutralized():
+    out = qe.rows_to_csv(["v"], [["=1+1"], ["+cmd"], ["@x"], ["-123"], ["-SUM(A1)"]])
+    assert "'=1+1" in out
+    assert "'+cmd" in out
+    assert "'@x" in out
+    assert "\n-123" in out, "일반 음수는 그대로 둔다"
+    assert "'-SUM(A1)" in out

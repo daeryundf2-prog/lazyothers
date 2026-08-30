@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import os
 import re
 import sys
@@ -39,7 +40,14 @@ DEPOSIT_WORDS = {"입금", "+", "in", "credit"}
 WITHDRAW_WORDS = {"출금", "-", "out", "debit"}
 
 _NUM_RE = re.compile(r"[^\d.\-]")
-_DATE_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y.%m.%d", "%Y/%m/%d", "%Y%m%d")
+# 은행별 표기 편차를 전부 포함한다 — "2024.01.16 12:30:45" 같은 점/슬래시+
+# 시간 형식이 빠지면 해당 행이 경고 없이 순환·홉 탐지에서 누락되었다.
+_DATE_FORMATS = (
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
+    "%Y.%m.%d %H:%M:%S", "%Y.%m.%d %H:%M", "%Y.%m.%d",
+    "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M", "%Y/%m/%d",
+    "%Y%m%d",
+)
 
 
 def _pick(columns: list[str], keys: list[str]) -> str | None:
@@ -221,15 +229,15 @@ def detect_hops(records: list[dict], window_days: int) -> list[dict]:
 def render_mermaid(ranking: list[tuple[str, dict]], top: int) -> str:
     lines = ["```mermaid", "flowchart LR", '  ACCT["본 계좌"]']
     for cp, agg in ranking[:top]:
-        node = "CP" + str(abs(hash(cp)) % 10000)
-        net = agg["입금"] - agg["출금"]
-        arrow = "-->" if net < 0 else "-->"  # 방향은 라벨로 구분 (mermaid 가독)
+        # 해시는 프로세스별 랜덤화(hash())를 쓰지 않는다 — 증거 도구의 산출물은
+        # 같은 입력에 대해 실행마다 동일해야 재현·대조가 가능하다.
+        node = "CP" + hashlib.sha1(cp.encode("utf-8")).hexdigest()[:8]
         label = f"{cp} (入{agg['입금']:,.0f} / 出{agg['출금']:,.0f})"
         lines.append(f'  {node}["{label}"]')
         if agg["출금"] > 0:
-            lines.append(f"  ACCT {arrow}|출금 {agg['출금']:,.0f}| {node}")
+            lines.append(f"  ACCT -->|출금 {agg['출금']:,.0f}| {node}")
         if agg["입금"] > 0:
-            lines.append(f"  {node} {arrow}|입금 {agg['입금']:,.0f}| ACCT")
+            lines.append(f"  {node} -->|입금 {agg['입금']:,.0f}| ACCT")
     lines.append("```")
     return "\n".join(lines)
 
@@ -239,6 +247,12 @@ def render_markdown(records: list[dict], summary: dict, trips: list[dict], hops:
     lines.append(f"- **거래 건수:** {len(records):,}건")
     lines.append(f"- **총 입금:** {summary['total_in']:,.0f}원 / **총 출금:** {summary['total_out']:,.0f}원")
     lines.append(f"- **분석 창:** {window_days}일 (순환·홉 판정 기준)\n")
+    undated = sum(1 for r in records if r["date_dt"] is None)
+    if undated:
+        lines.append(
+            f"> ⚠️ **타임스탬프를 파싱하지 못한 거래 {undated}건**이 순환·홉 탐지에서 제외되었다"
+            f" (랭킹에는 포함). 지원 형식: {', '.join(_DATE_FORMATS)}\n"
+        )
 
     lines.append("## 상대방별 랭킹 (거래 규모 순)\n")
     lines.append("| 순위 | 상대방 | 입금합 | 출금합 | 건수 |")

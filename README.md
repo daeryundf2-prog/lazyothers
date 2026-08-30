@@ -5,7 +5,7 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 ## 📦 포함된 도구 및 스킬 (Bundled Skills & Tools)
 
 ### 1. 한국어 AI 티 제거 및 윤문 엔진 (Humanize KR · im-not-ai)
-*   **`humanize-korean`**: LLM(ChatGPT, Claude, Gemini 등)이 작성한 한글 텍스트에서 AI 특유의 번역투, 기계적 병렬, 관용구, 접속사 남발 등 10대 카테고리 70개 패턴을 탐지하여 사실·주장·수치 등 의미는 100% 보존하고 문체와 리듬만 자연스러운 한국어로 재작성. (`scripts/prepare_monolith_input.py`, `scripts/verify_gates.py`)
+*   **`humanize-korean`**: LLM(ChatGPT, Claude, Gemini 등)이 작성한 한글 텍스트에서 AI 특유의 번역투, 기계적 병렬, 관용구, 접속사 남발 등 10대 카테고리 71개 패턴을 탐지하여 사실·주장·수치 등 의미는 100% 보존하고 문체와 리듬만 자연스러운 한국어로 재작성. (`scripts/prepare_monolith_input.py`, `scripts/verify_gates.py`)
     *   품질 기준선 계측: `python scripts/eval_baseline.py --k 3` (claude CLI 필요, `--dry-run`으로 계획만 출력) → `scripts/eval_compare.py 이전.json 이후.json`으로 두 스냅샷 대조. 픽스처는 `tests/fixtures.json`
 *   **`humanize`**: `/humanize` 단축 명령 엔트리포인트 (Fast 모드 / 정밀 모드)
 *   **`humanize-redo`**: `/humanize-redo` 2차 윤문 및 부분 조정 엔트리포인트

@@ -15,7 +15,7 @@
   정의. 유지보수·개발용 1회성 6종은 원본이 수록되지 않았으므로 번들하지
   않는다(필요 시 SKILL.md «에이전트 계보» 참조).
 - `tests/fixtures.json` — humanize eval 픽스처. `tests/baselines/`는
-  eval_baseline 스냅샷(레포에 남는다).
+  eval_baseline 스냅샷 저장 위치다(실행 시 생성 — 현재 커밋된 스냅샷은 없다).
 
 ## AI 워터마킹에 대한 입장
 

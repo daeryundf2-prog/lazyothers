@@ -1,18 +1,20 @@
 # lazyothers Python dependencies
+# 법증 도구 체인이므로 상한을 고정한다(다음 메이저까지) — 갑작스런 상위
+# 버전 동작 변경으로 산출물이 달라지는 것을 막는다.
 # Core (required for HWPX/HWP/PDF parsing)
-olefile>=0.47
-pymupdf>=1.23
-pypdf>=4.0
+olefile>=0.47,<1
+pymupdf>=1.23,<2
+pypdf>=4.0,<7
 
 # Financial flow tracer — XLSX 거래내역 읽기 (CSV는 표준 라이브러리로 처리)
-openpyxl>=3.1
+openpyxl>=3.1,<4
 
 # Optional — enhanced HWP 5.0 parsing
-hwp-hwpx-parser>=0.4
+hwp-hwpx-parser>=0.4,<1
 
 # Optional — OCR for scanned PDFs
 # docling>=2.0
 # unstructured>=0.12
 
 # Dev
-pytest>=7.0
+pytest>=7.0,<9

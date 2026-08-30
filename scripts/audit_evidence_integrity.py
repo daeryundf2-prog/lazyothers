@@ -6,10 +6,12 @@
 무결성 증명서(Chain of Custody Verification Sheet)를 마크다운으로 산출한다.
 
 판정 규칙 (보고서 대조 시)
-    일치   — 계산된 해시가 보고서 텍스트에 그대로 존재한다
-    불일치 — 보고서가 이 파일명을 언급하며 같은 길이의 해시를 근처에 기재했는데
-             계산값과 다르다 (사고 후보 — 원본 교체·파손·기재 오류)
-    미측정 — 보고서에서 이 파일을 찾을 수 없다 (측정 누락)
+    일치   — 파일명 언급 근처에 계산된 해시가 그대로 기재되어 있다
+    불일치 — 파일명 근처에 같은 길이의 해시가 기재됐는데 계산값과 다르다
+             (사고 후보 — 원본 교체·파손·기재 오류·파일↔해시 짝이변)
+    주의   — 파일명이 언급되지 않았지만 계산 해시가 보고서 어딘가에 존재한다
+             (해시↔파일 대응이 확인되지 않았다 — 짝이변 여부 사람이 확인)
+    미측정 — 보고서에서 이 파일과 그 해시를 찾을 수 없다 (측정 누락)
 
 Exit code:
     0 — 불일치 없음
@@ -74,25 +76,75 @@ def extract_report_hashes(report_text: str) -> dict[str, set[str]]:
     return out
 
 
+def _line_bounds(lines: list[str]) -> list[tuple[int, int]]:
+    """splitlines() 한 줄들이 원문에서 차지하는 [시작, 끝) 오프셋."""
+    bounds: list[tuple[int, int]] = []
+    off = 0
+    for ln in lines:
+        bounds.append((off, off + len(ln)))
+        off += len(ln) + 1  # 개행 1바이트
+    return bounds
+
+
 def verdict_for(entry: dict, report_text: str, report_hashes: dict[str, set[str]]) -> str:
-    """파일 1건의 판정. entry = {name, hashes: {algo: value}}."""
+    """파일 1건의 판정. entry = {name, hashes: {algo: value}}.
+
+    근거는 '파일명이 기재된 같은 줄의 해시'다. 보고서 전역 존재나 넓은
+    근방 윈도우로 일치를 주면 두 파일의 해시를 서로 바꿔 적은 보고서
+    (짝이변)가 둘 다 '일치'로 통과해버린다 — 교차 기재는 이 함수가 잡는
+    핵심 사고다. 같은 줄에 해시가 없을 때만 근방 윈도우로 폴백하되, 근방에
+    같은 길이 해시가 여러 개면 짝이 확정되지 않았으므로 '주의'로 남긴다.
+    """
     base = os.path.basename(entry["name"])
     if not report_text:
         return "산출"
-    windows = [m.start() for m in re.finditer(re.escape(base), report_text)]
-    for algo, value in entry["hashes"].items():
-        if value in report_hashes[algo]:
-            return "일치"
-    if not windows:
+    if base not in report_text:
+        for algo, value in entry["hashes"].items():
+            if value in report_hashes[algo]:
+                return "주의"
         return "미측정"
-    # 파일명이 언급됐다 — 언급 근처에 같은 길이 해시가 있으면 그것이 '기재된 해시'다.
-    for pos in windows:
+
+    lines = report_text.splitlines()
+    bounds = _line_bounds(lines)
+    mention_lines: set[int] = set()
+    mention_pos: list[int] = []
+    for m in re.finditer(re.escape(base), report_text):
+        mention_pos.append(m.start())
+        for i, (lo, hi) in enumerate(bounds):
+            if lo <= m.start() <= hi:
+                mention_lines.add(i)
+                break
+
+    def claims_on(idx: int, algo: str) -> list[str]:
+        return [x.group(0).lower() for x in _HASH_RE[algo].finditer(lines[idx])]
+
+    # 1) 같은 줄 판정 — 표·목록에서 해시는 파일명과 같은 줄에 기재된다.
+    for algo, value in entry["hashes"].items():
+        for i in mention_lines:
+            if value in claims_on(i, algo):
+                return "일치"
+    for algo, value in entry["hashes"].items():
+        for i in mention_lines:
+            claimed = claims_on(i, algo)
+            if claimed and value not in claimed:
+                return "불일치"
+    # 2) 근방 폴백 — 해시가 파일명 줄이 아닌 바로 다음 줄 등에 있을 때.
+    for pos in mention_pos:
         lo, hi = max(0, pos - _CONTEXT_WINDOW), pos + _CONTEXT_WINDOW
         near = report_text[lo:hi]
         for algo, value in entry["hashes"].items():
-            claimed = [m.group(0).lower() for m in _HASH_RE[algo].finditer(near)]
-            if claimed and value not in claimed:
-                return "불일치"
+            claimed = [x.group(0).lower() for x in _HASH_RE[algo].finditer(near)]
+            unique = set(claimed)
+            if not unique:
+                continue
+            if value in unique:
+                # 근방에 해시가 여러 종류면 이 파일과 짝지어졌다고 단정할 수 없다.
+                return "일치" if len(unique) == 1 else "주의"
+            return "불일치"
+    # 3) 근방에 해시가 전혀 없다 — 계산값이 보고서 어딘가에만 있으면 대응 미확인.
+    for algo, value in entry["hashes"].items():
+        if value in report_hashes[algo]:
+            return "주의"
     return "미측정"
 
 
@@ -103,14 +155,22 @@ def audit(targets: list[str], algorithms: list[str], report_text: str = "") -> d
         if not os.path.isfile(path):
             records.append({"name": path, "error": "파일 없음", "verdict": "불일치"})
             continue
+        # 감사 도중 파일이 바뀌면 해시가 무의미해진다 — 읽기 전후 메타데이터
+        # 를 대조해 변경을 감지하면 명시적으로 실패 처리한다 (TOCTOU 방어).
+        stat_before = os.stat(path)
         entry = {
             "name": path,
-            "size": os.path.getsize(path),
+            "size": stat_before.st_size,
             "hashes": {a: compute_hash(path, a) for a in algorithms},
         }
+        stat_after = os.stat(path)
+        if (stat_before.st_size, stat_before.st_mtime_ns) != (stat_after.st_size, stat_after.st_mtime_ns):
+            entry = {"name": path, "error": "감사 중 파일 변경 감지 — 해시 무효", "verdict": "불일치"}
+            records.append(entry)
+            continue
         entry["verdict"] = verdict_for(entry, report_text, report_hashes)
         records.append(entry)
-    summary = {v: sum(1 for r in records if r["verdict"] == v) for v in ("일치", "불일치", "미측정", "산출")}
+    summary = {v: sum(1 for r in records if r["verdict"] == v) for v in ("일치", "불일치", "주의", "미측정", "산출")}
     return {"records": records, "summary": summary}
 
 
@@ -130,16 +190,21 @@ def render_markdown(result: dict, algorithms: list[str], report_path: str, audit
             lines.append(f"| {r['name']} | - | " + " | ".join(["-"] * len(algorithms)) + f" | ❓ {r['error']} |")
             continue
         cells = " | ".join(f"`{r['hashes'][a]}`" for a in algorithms)
-        mark = {"일치": "✅ 일치", "불일치": "❌ 불일치", "미측정": "⚠️ 미측정", "산출": "🔍 산출"}[r["verdict"]]
+        mark = {"일치": "✅ 일치", "불일치": "❌ 불일치", "주의": "🟡 주의(대응 미확인)", "미측정": "⚠️ 미측정", "산출": "🔍 산출"}[r["verdict"]]
         lines.append(f"| {r['name']} | {r['size']:,} | {cells} | {mark} |")
 
     s = result["summary"]
     mismatched = [r for r in result["records"] if r["verdict"] == "불일치"]
-    lines.append(f"\n**요약:** 일치 {s.get('일치', 0)} · 불일치 {s.get('불일치', 0)} · 미측정 {s.get('미측정', 0)} · 산출 {s.get('산출', 0)}\n")
+    lines.append(f"\n**요약:** 일치 {s.get('일치', 0)} · 불일치 {s.get('불일치', 0)} · 주의 {s.get('주의', 0)} · 미측정 {s.get('미측정', 0)} · 산출 {s.get('산출', 0)}\n")
     if mismatched:
         lines.append("### 불일치 상세 — 제출 전 해소 필수\n")
         for r in mismatched:
-            lines.append(f"- `{r['name']}`: 계산값과 보고서 기재값이 다릅니다. 원본 교체·파손·기재 오류 중 무엇인지 원본 대조로 확인하십시오.")
+            lines.append(f"- `{r['name']}`: 계산값과 보고서 기재값이 다릅니다. 원본 교체·파손·기재 오류·파일↔해시 짝이변 중 무엇인지 원본 대조로 확인하십시오.")
+    cautioned = [r for r in result["records"] if r["verdict"] == "주의"]
+    if cautioned:
+        lines.append("### 주의 상세 — 해시↔파일 대응이 확인되지 않음\n")
+        for r in cautioned:
+            lines.append(f"- `{r['name']}`: 계산 해시가 보고서 어딘가에 존재하지만 파일명 근처에 기재되어 있지 않습니다. 보고서가 해시와 파일을 올바르게 짝지었는지 사람이 확인하십시오.")
 
     # Chain of Custody Verification Sheet
     self_payload = json.dumps(

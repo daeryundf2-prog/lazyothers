@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """mask_korean_pii.py - 한국형 개인정보 자동 마스킹 (법원 제출본·공문서 비식별화).
 
-텍스트에서 주민등록번호(체크섬 검증), 전화/휴대폰, 계좌번호, 이메일을 탐지해
-마스킹한다. kordoc의 redact_document가 HWPX/HWP 원본 서식 보존 마스킹을 담당하므로,
-이 스크립트는 텍스트·마크다운·CSV 레이어의 비식별화를 담당한다.
+텍스트에서 주민등록번호(체크섬 검증), 외국인등록번호(성별코드 5~8), 전화/휴대폰,
+계좌번호, 이메일을 탐지해 마스킹한다. kordoc의 redact_document가 HWPX/HWP 원본
+서식 보존 마스킹을 담당하므로, 이 스크립트는 텍스트·마크다운·CSV 레이어의
+비식별화를 담당한다.
+
+입력 인코딩은 UTF-8(BOM 포함) / UTF-16 / CP949(EUC-KR)를 자동 판별하고, 출력은
+원본 인코딩을 그대로 유지한다.
 
 마스킹 규칙 (일반적인 공적 서식 관행):
-    주민등록번호  901212-1******   (생년월일+성별코드 유지, 뒤 6자리 마스크)
+    주민/외국인번호  901212-1******   (생년월일+성별코드 유지, 뒤 6자리 마스크)
     전화/휴대폰   02-123-**** / 010-1234-****   (말미 4자리 마스크)
     계좌번호      123-45-******   (앞 2그룹 유지, 나머지 마스크)
     이메일        h**@example.com   (로컬파트 첫 글자만 유지)
@@ -28,24 +32,36 @@ import os
 import re
 import sys
 
-# ── 주민등록번호 ────────────────────────────────────────────────────
-# 6자리 생년월일 - 성별코드(1~4) + 일련. 유효 생월일만 후보로 잡아 오탐을 줄인다.
+# ── 주민등록번호 / 외국인등록번호 ──────────────────────────────────
+# 6자리 생년월일 - 성별코드 + 일련. 유효 생월일만 후보로 잡아 오탐을 줄인다.
+# 성별코드 1~4는 주민등록번호, 5~8은 외국인등록번호다.
+#
+# 경계 주의: \b를 쓰면 안 된다. 한국어 조사는 띄어쓰기 없이 숫자에 바로
+# 붙으므로("901212-1234568임을") 숫자-한글 사이에 단어 경계가 생기지 않는다.
+# (\w도 마찬가지 — 한글은 \w다.) 따라서 숫자 경계만 검사한다:
+#   (?<!\d) 앞이 숫자가 아니면 시작, (?!\d) 뒤가 숫자가 아니면 끝.
+# 이러면 조사가 붙어도 잡히고, 더 긴 숫자열의 일부는 잡지 않는다.
 _RRN_RE = re.compile(
-    r"\b(?P<birth>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))"
-    r"-(?P<sex>[1-4])(?P<rest>\d{6})\b"
+    r"(?<!\d)(?P<birth>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))"
+    r"-(?P<sex>[1-8])(?P<rest>\d{6})(?!\d)"
 )
 _RRN_WEIGHTS = (2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5)
 
 # ── 전화/휴대폰 ─────────────────────────────────────────────────────
-_PHONE_RE = re.compile(r"\b(02|0[3-6]\d|01[0136789]|070|050\d)-(\d{3,4})-(\d{4})\b")
+_PHONE_RE = re.compile(r"(?<!\d)(02|0[3-6]\d|01[0136789]|070|050\d)-(\d{3,4})-(\d{4})(?!\d)")
 
 # ── 계좌번호 (은행 무관 일반 3그룹 형식) ────────────────────────────
-_ACCOUNT_RE = re.compile(r"\b(\d{3,6})-(\d{2,6})-(\d{2,6})\b")
+_ACCOUNT_RE = re.compile(r"(?<!\d)(\d{3,6})-(\d{2,6})-(\d{2,6})(?!\d)")
 # 날짜(2024-01-16)와 0으로 시작하는 번호판별 값은 계좌로 오탐하지 않는다.
 _DATEISH_RE = re.compile(r"^(19|20)\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 
 # ── 이메일 ──────────────────────────────────────────────────────────
-_EMAIL_RE = re.compile(r"\b([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b")
+# 이메일은 숫자 경계가 아니라 로컬파트/도메인 문자 집합으로 경계를 잡는다
+# ("example.com이다"처럼 조사가 붙어도 잡히도록).
+_EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*"
+    r"@([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?![A-Za-z0-9.-])"
+)
 
 
 def validate_rrn(rrn: str) -> bool:
@@ -64,6 +80,10 @@ def mask_text(text: str, types: set[str]) -> tuple[str, dict]:
     def _rrn(m: re.Match) -> str:
         candidate = m.group(0)
         stats["rrn"] += 1
+        if m.group("sex") in "5678":
+            # 외국인등록번호: 공식 체크섬 체계가 주민번호와 다르다. 여기서는
+            # 표준 가중치 검증을 돌리지 않고 형식만으로 마스킹한다.
+            return f"{m.group('birth')}-{m.group('sex')}******"
         if not validate_rrn(candidate):
             # 체크섬이 틀려도 마스킹은 한다 — 틀린 번호가 개인정보가 아니라는 뜻이 아니다.
             stats["rrn_bad_checksum"] += 1
@@ -103,10 +123,37 @@ def mask_text(text: str, types: set[str]) -> tuple[str, dict]:
 ALL_TYPES = {"rrn", "phone", "account", "email"}
 
 
+def decode_bytes(raw: bytes) -> tuple[str, str]:
+    """바이트를 디코딩한다. (텍스트, 재인코딩에 쓸 인코딩명) 반환.
+
+    국내 공문서·은행 CSV가 흔히 쓰는 CP949/EUC-KR도 지원한다. 손실 있는
+    errors="replace"로 읽으면 본문이 U+FFFD로 훼손되므로, 어느 인코딩으로도
+    디코드하지 못하면 예외를 던져 실행 오류(exit 2)로 끝낸다 — 유실보다 실패.
+    """
+    import codecs
+
+    if raw.startswith(codecs.BOM_UTF16_LE) or raw.startswith(codecs.BOM_UTF16_BE):
+        return raw.decode("utf-16"), "utf-16"
+    if raw.startswith(codecs.BOM_UTF8):
+        return raw.decode("utf-8-sig"), "utf-8-sig"
+    try:
+        return raw.decode("utf-8"), "utf-8"
+    except UnicodeDecodeError:
+        pass
+    try:
+        return raw.decode("cp949"), "cp949"
+    except UnicodeDecodeError as e:
+        raise ValueError("utf-8 / cp949 어느 쪽으로도 디코드할 수 없습니다") from e
+
+
+def encode_text(text: str, encoding: str) -> bytes:
+    return text.encode(encoding)
+
+
 def render_report(stats: dict, source: str) -> str:
     lines = ["## 비식별화 처리 결과\n"]
     lines.append(f"- **원본:** {source}")
-    lines.append(f"- **주민등록번호:** {stats['rrn']}건 마스킹 (체크섬 불일치 {stats['rrn_bad_checksum']}건 — 형식만 맞는 값이 포함되어 있을 수 있으니 원본 확인 요망)")
+    lines.append(f"- **주민등록번호·외국인등록번호:** {stats['rrn']}건 마스킹 (체크섬 불일치 {stats['rrn_bad_checksum']}건 — 형식만 맞는 값이 포함되어 있을 수 있으니 원본 확인 요망)")
     lines.append(f"- **전화/휴대폰:** {stats['phone']}건")
     lines.append(f"- **계좌번호:** {stats['account']}건 (날짜로 판별해 유지 {stats['account_skipped_date']}건)")
     lines.append(f"- **이메일:** {stats['email']}건")
@@ -131,17 +178,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: 파일을 찾을 수 없습니다: {args.input}", file=sys.stderr)
         return 2
 
-    with open(args.input, "r", encoding="utf-8", errors="replace") as f:
-        text = f.read()
+    with open(args.input, "rb") as f:
+        raw = f.read()
+    try:
+        text, encoding = decode_bytes(raw)
+    except ValueError as e:
+        print(f"error: {args.input}: {e} (utf-8 / utf-16 / cp949만 지원)", file=sys.stderr)
+        return 2
 
     masked, stats = mask_text(text, types)
     report = render_report(stats, args.input)
 
     if args.output:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(masked)
-        print(f"[OK] 마스킹본 저장: {args.output}")
+        # 원본 인코딩을 보존한다 — cp949 입력을 utf-8로 재작성하면 문서 무결성이 깨진다.
+        with open(args.output, "wb") as f:
+            f.write(encode_text(masked, encoding))
+        print(f"[OK] 마스킹본 저장: {args.output} (encoding: {encoding})")
         if args.report:
             with open(args.report, "w", encoding="utf-8") as f:
                 f.write(report + "\n")
