@@ -7,7 +7,22 @@
     "url": "https://github.com/daeryundf2-prog"
   },
   "license": "MIT",
-  "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech", "humanize-korean", "im-not-ai", "korean-writing"],
+  "keywords": [
+    "antigravity",
+    "antigravity-plugin",
+    "mcp",
+    "kordoc",
+    "context7",
+    "grep_app",
+    "xds",
+    "hwpx",
+    "hwp",
+    "court-evidence",
+    "legal-tech",
+    "humanize-korean",
+    "im-not-ai",
+    "korean-writing"
+  ],
   "skills": "./skills",
   "mcpServers": "./mcp_config.json",
   "pythonDependencies": "./requirements.txt",
@@ -18,5 +33,6 @@
     "developerName": "daeryundf2-prog",
     "category": "Productivity & Legal-Tech",
     "brandColor": "#10B981"
-  }
+  },
+  "hooks": "./hooks.json"
 }
