@@ -128,3 +128,28 @@ def test_pdf_invalid_file_tries_both_parsers(tmp_path):
     # 폴백 체인이 실제로 양쪽을 모두 시도했는지 오류 메시지로 확인
     assert "PyMuPDF failed" in r.stderr, "PyMuPDF 실패 사유가 포함되어야 함"
     assert "pypdf failed" in r.stderr, "pypdf 폴백이 시도되었어야 함"
+
+
+def test_anydoc_csv_and_office_support(tmp_path):
+    """AnyDoc이 CSV 및 오피스 파일 형식을 마크다운으로 정상 파싱해야 한다."""
+    csv_file = tmp_path / "sample.csv"
+    csv_file.write_text("이름,부서,직급\n홍길동,디지털포렌식팀,수석연구원\n이순신,형사소송팀,변호사\n", encoding="utf-8")
+    out = _run(csv_file)
+    assert out["format"] == "CSV"
+    assert "홍길동" in out["text"]
+    assert "디지털포렌식팀" in out["text"]
+
+
+def test_anydoc_markdown_flag_output(tmp_path):
+    """AnyDoc 파일 파싱 시 --markdown 옵션이 정상 작동해야 한다."""
+    csv_file = tmp_path / "table.csv"
+    csv_file.write_text("호증,증거명,입증취지\n갑 제1호증,차용증,대여금 지급 사실\n", encoding="utf-8")
+    out_path = tmp_path / "out.md"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(csv_file), "--markdown", "--output", str(out_path)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    content = out_path.read_text(encoding="utf-8")
+    assert "Document Content: table.csv" in content
+    assert "갑 제1호증" in content

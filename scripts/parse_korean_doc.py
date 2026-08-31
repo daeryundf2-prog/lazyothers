@@ -265,9 +265,72 @@ def parse_pdf(file_path: str) -> dict:
     }
 
 
+def parse_anydoc(file_path: str) -> dict:
+    """Parse office documents, spreadsheets, presentations, and ebooks via Firecrawl AnyDoc."""
+    ext = os.path.splitext(file_path)[1].lower()
+    fmt_name = ext[1:].upper()
+    try:
+        import anydoc
+        text = anydoc.to_markdown(file_path)
+        return {
+            "file_path": file_path,
+            "format": fmt_name,
+            "metadata": {"engine": "firecrawl-anydoc"},
+            "sections": [{"name": "body", "text": text}],
+            "tables": [],
+            "text": text,
+        }
+    except ImportError:
+        import subprocess
+        try:
+            res = subprocess.run(
+                ["npx", "-y", "@firecrawl/anydoc", file_path],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                shell=sys.platform == "win32",
+                timeout=30,
+            )
+            if res.returncode == 0:
+                text = res.stdout
+                return {
+                    "file_path": file_path,
+                    "format": fmt_name,
+                    "metadata": {"engine": "npx @firecrawl/anydoc"},
+                    "sections": [{"name": "body", "text": text}],
+                    "tables": [],
+                    "text": text,
+                }
+            return {
+                "file_path": file_path,
+                "format": fmt_name,
+                "error": f"anydoc CLI failed (exit {res.returncode}): {res.stderr.strip()}",
+            }
+        except Exception as e:
+            return {
+                "file_path": file_path,
+                "format": fmt_name,
+                "error": f"anydoc not available: {e}. Install via 'pip install firecrawl-anydoc'",
+            }
+    except Exception as e:
+        return {
+            "file_path": file_path,
+            "format": fmt_name,
+            "error": f"Failed to convert with anydoc: {e}",
+        }
+
+
+ANYDOC_EXTENSIONS = {
+    ".doc", ".docx", ".docm", ".dot", ".dotx",
+    ".ppt", ".pptx", ".pps", ".ppsx", ".pot", ".potx", ".odp",
+    ".xls", ".xlsx", ".xlsm", ".xlsb", ".ods", ".csv",
+    ".odt", ".rtf", ".epub",
+}
+
+
 def main():
-    parser = argparse.ArgumentParser(description="한국 공문서(HWP/HWPX/PDF) 고속 파싱 및 텍스트 추출 도구")
-    parser.add_argument("input_file", help="입력 파일 (.hwp, .hwpx, .pdf)")
+    parser = argparse.ArgumentParser(description="한국 공문서 및 오피스 문서(HWP/HWPX/PDF/DOCX/XLSX/PPTX) 고속 파싱 도구")
+    parser.add_argument("input_file", help="입력 파일 (.hwp, .hwpx, .pdf, .docx, .xlsx, .pptx, .csv 등)")
     parser.add_argument("--output", "-o", help="결과 JSON 저장 경로 (미지정시 stdout 출력)")
     parser.add_argument("--markdown", "-m", action="store_true", help="결과를 마크다운 형식으로 출력")
 
@@ -288,8 +351,13 @@ def main():
         if "error" in data:
             print(f"Error: {data['error']}", file=sys.stderr)
             sys.exit(1)
+    elif ext in ANYDOC_EXTENSIONS:
+        data = parse_anydoc(file_path)
+        if "error" in data:
+            print(f"Error: {data['error']}", file=sys.stderr)
+            sys.exit(1)
     else:
-        print(f"Unsupported file extension: {ext} (supported: .hwpx, .hwp, .pdf)", file=sys.stderr)
+        print(f"Unsupported file extension: {ext} (supported: .hwpx, .hwp, .pdf, .docx, .xlsx, .pptx, .csv, .rtf, .odt, .epub)", file=sys.stderr)
         sys.exit(1)
 
     if "error" in data:
