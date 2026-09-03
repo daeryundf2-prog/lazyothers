@@ -45,6 +45,8 @@ INVALID_COUNTER_VALUES = {"n/a", "na", "-", "—", "none", "null", "", "없음",
 
 def extract_registrable_domain(hostname: str) -> str:
     clean = hostname.lower().strip()
+    if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", clean):
+        return clean
     if clean.startswith("www."):
         clean = clean[4:]
     parts = clean.split(".")
@@ -73,30 +75,77 @@ def extract_unique_domains(text: str) -> list[str]:
     return sorted(list(domains))
 
 
+ALL_STATUTE_NAMES = (
+    "민법|형법|개인정보보호법|정보통신망법|정보통신망 이용촉진 및 정보보호 등에 관한 법률|"
+    "상법|민사소송법|형사소송법|행정소송법|근로기준법|부정경쟁방지법|부정경쟁방지 및 영업비밀보호에 관한 법률|"
+    "전자문서법|전자문서 및 전자거래 기본법|특정금융정보법|특정 금융거래정보의 보고 및 이용 등에 관한 법률|"
+    "전자상거래법|전자상거래 등에서의 소비자보호에 관한 법률|자본시장법|자본시장과 금융투자업에 관한 법률|"
+    "신용정보법|신용정보의 이용 및 보호에 관한 법률|소비자기본법|가사소송법|특허법|저작권법"
+)
+
+
 def extract_legal_authorities(text: str) -> list[str]:
     """Extract distinct legal statutes and precedents from sources column."""
     auths: set[str] = set()
-    statutes = re.findall(r"(?:민법|형법|상법|정보통신망법|개인정보보호법|민사소송법|형사소송법)\s*제\s*\d+\s*조", text)
+    statutes = re.findall(rf"(?:{ALL_STATUTE_NAMES})\s*제\s*\d+\s*조(?:\s*의\s*\d+)?", text)
     for s in statutes:
         auths.add(re.sub(r"\s+", "", s))
-    precedents = re.findall(r"\d{4}[가-힣]{1,4}\d+", text)
+    precedents = re.findall(r"\d{4}\s*[가-힣]{1,4}\s*\d+", text)
     for p in precedents:
-        auths.add(p)
+        auths.add(re.sub(r"\s+", "", p))
     return sorted(list(auths))
 
 
+def _split_markdown_row(line: str) -> list[str]:
+    content = line.strip()
+    if content.startswith("|"):
+        content = content[1:]
+    if content.endswith("|"):
+        content = content[:-1]
+    raw_cells = re.split(r"(?<!\\)\|", content)
+    return [c.strip().replace(r"\|", "|") for c in raw_cells]
+
+
 def parse_markdown_table(markdown: str) -> list[dict[str, str]]:
-    lines = [l.strip() for l in markdown.splitlines() if l.strip().startswith("|") and l.strip().endswith("|")]
-    if len(lines) < 2:
+    """Locates and parses the Legal Claim Ledger table, ignoring unrelated tables or preambles."""
+    blocks: list[list[str]] = []
+    current_block: list[str] = []
+
+    for line in markdown.splitlines():
+        trimmed = line.strip()
+        if trimmed.startswith("|") and ("|" in trimmed[1:] or trimmed.endswith("|")):
+            current_block.append(trimmed)
+        else:
+            if current_block:
+                blocks.append(current_block)
+                current_block = []
+    if current_block:
+        blocks.append(current_block)
+
+    claim_re = re.compile(r"claim|주장|항목", re.IGNORECASE)
+    status_re = re.compile(r"status|상태", re.IGNORECASE)
+
+    target_block = None
+    for block in blocks:
+        if len(block) >= 2:
+            headers = [c.lower() for c in _split_markdown_row(block[0])]
+            if any(claim_re.search(h) for h in headers) and any(status_re.search(h) for h in headers):
+                target_block = block
+                break
+
+    if not target_block and blocks:
+        target_block = blocks[0]
+
+    if not target_block or len(target_block) < 2:
         return []
 
-    header_cells = [c.strip().lower() for c in lines[0][1:-1].split("|")]
+    header_cells = [c.lower() for c in _split_markdown_row(target_block[0])]
     rows: list[dict[str, str]] = []
 
-    for line in lines[1:]:
-        if re.match(r"^\|[\s\-:|]+\|$", line):
+    for line in target_block[1:]:
+        if re.match(r"^\|?[\s\-:|]+\|?$", line):
             continue
-        cells = [c.strip() for c in line[1:-1].split("|")]
+        cells = _split_markdown_row(line)
         row_dict: dict[str, str] = {}
         for idx, h in enumerate(header_cells):
             if idx < len(cells):

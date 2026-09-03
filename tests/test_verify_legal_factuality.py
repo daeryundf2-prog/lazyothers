@@ -345,6 +345,80 @@ def test_claim_ledger_integration_in_legal_file_verifier(tmp_path):
     assert any("Claim Ledger 위반" in e for e in res_fail["errors"])
 
 
+def test_fabricated_court_with_korean_particles_blocked():
+    text1 = "서울민사지방법원은 원고의 청구를 인용하였다."
+    res1 = vlf.verify_legal_text(text1)
+    assert res1["verdict"] == "FAIL"
+    assert any("서울민사지방법원" in e and "법원 명칭 날조" in e for e in res1["errors"])
+
+    text2 = "한국연방법원에 소장을 제출하였습니다."
+    res2 = vlf.verify_legal_text(text2)
+    assert res2["verdict"] == "FAIL"
+    assert any("한국연방법원" in e and "법원 명칭 날조" in e for e in res2["errors"])
+
+
+def test_fabricated_agency_with_korean_particles_blocked():
+    text1 = "사이버수사처와 공조하여 압수수색을 진행하였다."
+    res1 = vlf.verify_legal_text(text1)
+    assert res1["verdict"] == "FAIL"
+    assert any("사이버수사처" in e for e in res1["errors"])
+
+    text2 = "디지털포렌식청과 회의를 가졌습니다."
+    res2 = vlf.verify_legal_text(text2)
+    assert res2["verdict"] == "FAIL"
+    assert any("디지털포렌식청" in e for e in res2["errors"])
+
+
+def test_obsolete_ministry_with_successor_annotation_or_allow_historical():
+    # With successor annotation
+    text_annotated = "정보통신부(현 과학기술정보통신부) 2005년 고시를 근거로 합니다."
+    res_annotated = vlf.verify_legal_text(text_annotated)
+    assert res_annotated["verdict"] == "WARN"
+    assert len(res_annotated["errors"]) == 0
+    assert any("역사적 명칭 인용" in w for w in res_annotated["warnings"])
+
+    # With allow_historical=True
+    text_hist = "정보통신부 2005년 고시를 근거로 합니다."
+    res_hist = vlf.verify_legal_text(text_hist, allow_historical=True)
+    assert res_hist["verdict"] == "WARN"
+    assert len(res_hist["errors"]) == 0
+    assert any("역사적 명칭 인용" in w for w in res_hist["warnings"])
+
+
+def test_generate_legal_draft_with_claim_ledger(tmp_path):
+    import subprocess
+    script = SCRIPT_DIR / "generate_legal_draft.py"
+
+    ledger_file = tmp_path / "claim-ledger.md"
+    ledger_file.write_text(
+        "| Claim | Risk Level | Sources (2+ Domains) | Counter-Search Result | Primary Source | Status |\n"
+        "|---|---|---|---|---|:---:|\n"
+        "| [Claim 1] 대여금 반환 청구 성립 | High | https://law.go.kr, https://scourt.go.kr | 반대 판례 없음 | https://law.go.kr | `VERIFIED` |\n",
+        encoding="utf-8",
+    )
+
+    draft_input = {
+        "type": "소장",
+        "case_info": {"court": "서울중앙지방법원", "plaintiff": "홍길동", "defendant": "김철수"},
+        "claims": ["피고는 원고에게 금 10,000,000원을 지급하라."],
+        "facts": ["원고는 피고에게 금전을 대여하였다 [Claim 1]."],
+        "evidence_list": [{"label": "갑 제1호증", "title": "차용증"}],
+    }
+    input_file = tmp_path / "draft_input.json"
+    input_file.write_text(json.dumps(draft_input, ensure_ascii=False), encoding="utf-8")
+
+    out_file = tmp_path / "out_draft.md"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--input-json", str(input_file), "-o", str(out_file), "--claim-ledger", str(ledger_file)],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert out_file.is_file()
+    assert "[Claim 1]" in out_file.read_text(encoding="utf-8")
+
+
 
 
 

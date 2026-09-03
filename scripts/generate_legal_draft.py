@@ -119,16 +119,22 @@ def _party_header(case_info: dict) -> list[str]:
     return lines
 
 
-def _facts_section(facts: list[dict], index: dict[str, str], strict_evidence: bool = False) -> list[str]:
+def _facts_section(facts: list[dict | str], index: dict[str, str], strict_evidence: bool = False) -> list[str]:
     lines: list[str] = []
     for fact in facts:
-        heading = fact.get("heading") or ""
-        if heading:
-            lines.append(f"### {heading}\n")
-        paragraphs = fact.get("paragraphs") or ([fact["text"]] if fact.get("text") else [])
-        body = "\n\n".join(str(t) for t in paragraphs)
+        if isinstance(fact, str):
+            heading = ""
+            paragraphs = [fact]
+            body = fact
+            explicit_evidence = []
+        else:
+            heading = fact.get("heading") or ""
+            if heading:
+                lines.append(f"### {heading}\n")
+            paragraphs = fact.get("paragraphs") or ([fact["text"]] if fact.get("text") else [])
+            body = "\n\n".join(str(t) for t in paragraphs)
+            explicit_evidence = fact.get("evidence") or []
         lines.append(body)
-        explicit_evidence = fact.get("evidence") or []
         evidence_tags = re.findall(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", body, re.DOTALL | re.IGNORECASE)
         line = method_line(body, explicit_evidence, index)
         if strict_evidence and not line and not evidence_tags:
@@ -212,6 +218,7 @@ def generate(
     source_text: str | None = None,
     morph_grounding: bool = False,
     high_fidelity: bool = False,
+    claim_ledger: str | None = None,
 ) -> str:
     doc_type = str(data.get("type", "소장")).strip()
     if doc_type not in DRAFT_TYPES:
@@ -235,6 +242,7 @@ def generate(
             source_text=source_text,
             morph_grounding=morph_grounding,
             high_fidelity=high_fidelity,
+            claim_ledger_path=claim_ledger,
         )
         if audit["errors"]:
             raise ValueError(f"법률 사실성 검증 실패: {'; '.join(audit['errors'])}")
@@ -249,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--input-json", "-i", required=True, help="초안 재료 JSON (type/case_info/claims/facts/evidence_list)")
     p.add_argument("--output", "-o", default="", help="출력 마크다운 경로 (미지정 시 stdout)")
     p.add_argument("--source", help="입증 원문 또는 사실관계 원본 파일 (.txt, .md, .json)")
+    p.add_argument("--claim-ledger", help="Optional path to claim-ledger.md for Section 6 verification")
     p.add_argument("--verify", dest="verify", action="store_true", default=True, help="조문 및 판례 사실성 검증 수행 (기본 활성)")
     p.add_argument("--no-verify", dest="verify", action="store_false", help="사실성 검증 건너뛰기")
     p.add_argument("--strict", action="store_true", help="경고 발생 시에도 실패 처리")
@@ -292,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
             source_text=source_text,
             morph_grounding=args.morph_grounding,
             high_fidelity=args.high_fidelity,
+            claim_ledger=args.claim_ledger,
         )
     except ValueError as exc:
         msg = str(exc)

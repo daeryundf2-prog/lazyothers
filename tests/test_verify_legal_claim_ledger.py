@@ -110,7 +110,28 @@ def test_file_level_ledger_verification(tmp_path):
 
     synth_file = tmp_path / "draft.md"
     synth_file.write_text("원고는 [Claim 1]에 의해 청구합니다.", encoding="utf-8")
-
     report = vcl.verify_claim_ledger_file(ledger_file, synthesis_path=synth_file)
     assert report["ok"] is True
     assert report["totalClaims"] == 3
+
+
+def test_legal_claim_ledger_with_preamble_and_extended_statutes():
+    ledger_with_preamble = """
+# Case Information
+| Attribute | Value |
+|---|---|
+| Court | Seoul Central District Court |
+| Case | 2024Gahap12345 |
+
+## Claim Ledger
+| Claim | Risk Level | Sources (2+ Domains / Authorities) | Counter-Search / Falsification | Primary Source | Status |
+|---|---|---|---|---|:---:|
+| [Claim 1] 부당해고 및 저작권 침해 | High | 근로기준법 제23조, 저작권법 제136조, 2020다12345 | 사직합의 부존재 확인 | 근로기준법 제23조 | `VERIFIED` |
+| [Claim 2] 사내 인트라넷 침해 | Med | http://10.0.0.1/audit, https://scourt.go.kr/portal | 사내망 루프백 반증 완료 | 10.0.0.1 | `VERIFIED` |
+"""
+    res = vcl.validate_claim_ledger(ledger_with_preamble)
+    assert res["ok"] is True
+    assert res["totalClaims"] == 2
+    assert res["verifiedCount"] == 2
+    assert len(res["violations"]) == 0
+

@@ -123,6 +123,17 @@ function sourceCandidate(targetFile) {
 	return candidates.find((p) => fs.existsSync(p));
 }
 
+function ledgerCandidate(targetFile) {
+	const dir = path.dirname(path.resolve(targetFile));
+	const candidates = [
+		join(dir, "claim-ledger.md"),
+		join(dir, "claim_ledger.md"),
+		join(process.cwd(), "claim-ledger.md"),
+		join(process.cwd(), "claim_ledger.md"),
+	];
+	return candidates.find((p) => fs.existsSync(p));
+}
+
 async function main() {
 	const sources = await collectSources();
 	const targetFile = extractTarget(sources);
@@ -140,9 +151,13 @@ async function main() {
 	}
 
 	const srcFile = sourceCandidate(targetFile);
+	const ledgerFile = ledgerCandidate(targetFile);
 	const verifyArgs = [verifyScript, targetFile, "--json"];
 	if (srcFile) {
 		verifyArgs.push("--source", srcFile);
+	}
+	if (ledgerFile) {
+		verifyArgs.push("--claim-ledger", ledgerFile);
 	}
 
 	const pyCandidates = process.platform === "win32" ? ["python", "py", "python3"] : ["python3", "python"];

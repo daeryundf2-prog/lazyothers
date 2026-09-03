@@ -90,14 +90,21 @@ PRECEDENT_RE = re.compile(
     r"(?P<year>\d{4})\s*(?P<code>[가-힣]{1,4})\s*(?P<num>\d+)\b"
 )
 
+# Standard Korean particle/suffix lookahead for court and agency bounds
+KOREAN_PARTICLE_SUFFIX = (
+    r"(?:장관|차관|처장|청장|국장|위원장|부장|판사|검사|법원장|령|고시|지침|규정)?"
+    r"(?:[이가은는을를의에]|에서|에게|서|과|와|도|만|부터|까지|로|으로|란|이란|라|라는|이라|이라는|며|이며|고|이고|통해|대해|관해)?"
+    r"(?![가-힣])"
+)
+
 # Abolished or fabricated court names (Section 5.1 #2)
 FABRICATED_COURT_RE = re.compile(
-    r"\b(?:서울민사지방법원|서울형사지방법원|한국연방법원|연방대법원|중앙고등법원|고등대법원|[가-힣]+민사지방법원|[가-힣]+형사지방법원)\b"
+    rf"(?<![가-힣])(?P<court>서울민사지방법원|서울형사지방법원|한국연방법원|연방대법원|중앙고등법원|고등대법원|[가-힣]+민사지방법원|[가-힣]+형사지방법원){KOREAN_PARTICLE_SUFFIX}"
 )
 
 # Fabricated government agencies and investigative bodies (Section 5.1 #2)
 FABRICATED_AGENCY_RE = re.compile(
-    r"(?<![가-힣])(?P<agency>디지털포렌식청|사이버수사처|국가포렌식연구원|사이버범죄특별수사처|경찰청사이버보안국|사이버보안청|인공지능윤리청|국가데이터청|개인정보보호청|사이버테러수사본부|정보보호조사위원회|디지털윤리위원회|한국연방검찰청|대검찰청사이버수사청)(?=[이가은는을를의에]|에서|으로|로|\s|[,\.!?\)]|$)"
+    rf"(?<![가-힣])(?P<agency>디지털포렌식청|사이버수사처|국가포렌식연구원|사이버범죄특별수사처|경찰청사이버보안국|사이버보안청|인공지능윤리청|국가데이터청|개인정보보호청|사이버테러수사본부|정보보호조사위원회|디지털윤리위원회|한국연방검찰청|대검찰청사이버수사청){KOREAN_PARTICLE_SUFFIX}"
 )
 
 # Abolished / obsolete government ministries and their current successors (Section 5.1 #2)
@@ -138,6 +145,8 @@ def verify_legal_text(
     source_text: str | None = None,
     morph_grounding: bool = False,
     high_fidelity: bool = False,
+    allow_historical: bool = False,
+    claim_ledger_path: str | Path | None = None,
 ) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
@@ -190,7 +199,7 @@ def verify_legal_text(
 
     # 3-1. Fabricated or abolished court names check (Section 5.1 #2)
     for m in FABRICATED_COURT_RE.finditer(text):
-        fake_court = m.group(0)
+        fake_court = m.group("court")
         errors.append(
             f"[법원 명칭 날조] 폐지되거나 실존하지 않는 법원 명칭 인용: {fake_court} (Section 5.1 위반)"
         )
@@ -204,11 +213,53 @@ def verify_legal_text(
 
     # 3-3. Abolished government ministries check (Section 5.1 #2)
     for agency, (abolish_info, successor) in ABOLISHED_GOV_AGENCIES.items():
-        pat = re.compile(rf"(?<![가-힣]){re.escape(agency)}(?:장관|차관|령|고시|지침)?(?=[이가은는을를의에]|에서|으로|로|\s|[,\.!?\)]|$)")
+        pat = re.compile(rf"(?<![가-힣]){re.escape(agency)}{KOREAN_PARTICLE_SUFFIX}")
         if pat.search(text):
-            errors.append(
-                f"[정부기관 명칭 오류/날조] 폐지된 구 정부 부처명 인용: '{agency}' ({abolish_info}, 현행 '{successor}' 명칭 사용 필수) (Section 5.1 위반)"
+            successor_candidates = [s.strip() for s in re.split(r"또는|/|,", successor) if s.strip()]
+            has_successor_annotation = any(cand in text for cand in successor_candidates)
+            has_historical_marker = bool(
+                re.search(rf"\((?:구|과거)\s*{re.escape(agency)}\)", text)
+                or re.search(rf"{re.escape(agency)}\s*\((?:현|현행)", text)
             )
+
+            if has_successor_annotation or has_historical_marker or allow_historical:
+                warnings.append(
+                    f"[정부기관 역사적 명칭 인용] 폐지된 구 정부 부처명 인용: '{agency}' ({abolish_info}, 현행 '{successor}' 병기됨/역사적 검토 허용)"
+                )
+            else:
+                errors.append(
+                    f"[정부기관 명칭 오류/날조] 폐지된 구 정부 부처명 인용: '{agency}' ({abolish_info}, 현행 '{successor}' 명칭 사용 필수) (Section 5.1 위반)"
+                )
+
+    # 3-4. Optional Claim Ledger integration (Section 6)
+    if claim_ledger_path:
+        try:
+            from scripts.verify_claim_ledger import verify_claim_ledger_file
+        except ImportError:
+            try:
+                from verify_claim_ledger import verify_claim_ledger_file
+            except ImportError:
+                verify_claim_ledger_file = None
+
+        if verify_claim_ledger_file is not None:
+            ledger_report = verify_claim_ledger_file(claim_ledger_path, synthesis_path=None)
+            # Check cited claims in text
+            citation_re = re.compile(r"\[Claim\s*([A-Za-z0-9._-]+)\]", re.IGNORECASE)
+            for m in citation_re.finditer(text):
+                cited_id = f"Claim {m.group(1)}"
+                found = next((r for r in ledger_report["rows"] if r["claimId"].lower() == cited_id.lower()), None)
+                if not found:
+                    errors.append(f"[Claim Ledger 위반] 문서에 인용된 [{cited_id}]가 claim-ledger.md에 등록되어 있지 않습니다.")
+                elif found["status"] != "VERIFIED":
+                    errors.append(
+                        f"[Claim Ledger 위반] 문서에 인용된 [{cited_id}]의 원장 상태가 '{found['status']}'입니다. "
+                        "오직 VERIFIED 주장만 최종 문서 인용이 허용됩니다 (Section 6 위반)."
+                    )
+            if not ledger_report["ok"]:
+                for v in ledger_report["violations"]:
+                    errors.append(f"[Claim Ledger 위반] [{v['claimId']}] {v['violation']}")
+        else:
+            warnings.append("verify_claim_ledger 모듈을 찾을 수 없어 원장 검증을 건너뛰었습니다.")
 
     # 4. Evidence tag attribution check (Section 3.2 #1)
     evidence_matches = EVIDENCE_TAG_RE.findall(text)
@@ -291,6 +342,7 @@ def verify_legal_file(
     source_path: str | Path | None = None,
     morph_grounding: bool = False,
     high_fidelity: bool = False,
+    allow_historical: bool = False,
     claim_ledger_path: str | Path | None = None,
 ) -> dict:
     path = Path(file_path)
@@ -319,6 +371,7 @@ def verify_legal_file(
         source_text=source_text,
         morph_grounding=morph_grounding,
         high_fidelity=high_fidelity,
+        allow_historical=allow_historical,
     )
 
     # Section 6 Claim Ledger integration
@@ -359,6 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("file", help="Path to legal document (.md, .txt) to verify")
     parser.add_argument("--source", help="Optional path to source evidence/facts for grounding check")
     parser.add_argument("--claim-ledger", help="Optional path to claim-ledger.md for Section 6 verification")
+    parser.add_argument("--allow-historical", action="store_true", help="Allow historical abolished ministry citations (warning instead of fatal error)")
     parser.add_argument("--morph-grounding", action="store_true", help="Enforce Kiwi morphological hybrid grounding check against source")
     parser.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding mode")
     parser.add_argument("--json", action="store_true", help="Output JSON results")
@@ -370,6 +424,7 @@ def main(argv: list[str] | None = None) -> int:
         source_path=args.source,
         morph_grounding=args.morph_grounding,
         high_fidelity=args.high_fidelity,
+        allow_historical=args.allow_historical,
         claim_ledger_path=args.claim_ledger,
     )
 
