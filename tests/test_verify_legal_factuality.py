@@ -194,6 +194,20 @@ def test_evidence_tag_attribution_and_grounding():
     assert res_empty["verdict"] == "FAIL"
     assert any("비어 있습니다" in e for e in res_empty["errors"])
 
+    # Attributed evidence tag recognized
+    draft_attr = (
+        '<evidence source="bank_receipt.pdf">2024년 1월 16일 원고는 피고에게 금 10,000,000원을 무통장 송금하였다.</evidence>\n'
+        '피고는 원고로부터 대여금을 수령하였습니다.'
+    )
+    res_attr = vlf.verify_legal_text(draft_attr, source_text=source_facts)
+    assert res_attr["verdict"] == "PASS"
+
+    # Evidence tag without source_text yields warning
+    res_no_source = vlf.verify_legal_text(draft_valid, source_text=None)
+    assert res_no_source["verdict"] == "WARN"
+    assert any("대조할 원문(--source)이 지정되지 않았습니다" in w for w in res_no_source["warnings"])
+
+
 
 
 

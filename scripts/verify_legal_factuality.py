@@ -95,7 +95,7 @@ FABRICATED_COURT_RE = re.compile(
     r"\b(?:서울민사지방법원|서울형사지방법원|한국연방법원|연방대법원|중앙고등법원|고등대법원|[가-힣]+민사지방법원|[가-힣]+형사지방법원)\b"
 )
 
-EVIDENCE_TAG_RE = re.compile(r"<evidence>(.*?)</evidence>", re.DOTALL)
+EVIDENCE_TAG_RE = re.compile(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", re.DOTALL | re.IGNORECASE)
 
 
 def verify_legal_text(text: str, current_year: int = 2026, source_text: str | None = None) -> dict:
@@ -169,6 +169,10 @@ def verify_legal_text(text: str, current_year: int = 2026, source_text: str | No
                 errors.append(
                     f"근거 인용 불일치: <evidence> 구절('{q_strip[:25]}...')이 원문(source)에 존재하지 않습니다."
                 )
+        else:
+            warnings.append(
+                f"<evidence> 인용 구절('{q_strip[:25]}...')이 존재하나 대조할 원문(--source)이 지정되지 않았습니다."
+            )
 
     # 5. Morphological grounding check if source text is provided (Section 5.2)
     if source_text:
@@ -181,7 +185,8 @@ def verify_legal_text(text: str, current_year: int = 2026, source_text: str | No
                 calculate_grounding_overlap = None
 
         if calculate_grounding_overlap is not None:
-            overlap = calculate_grounding_overlap(source_text, text, threshold=0.65)
+            clean_tgt = re.sub(r"<[^>]+>", " ", text)
+            overlap = calculate_grounding_overlap(source_text, clean_tgt, threshold=0.65)
             if not overlap["is_grounded"]:
                 warnings.append(
                     f"형태소 그라운딩 미달 ({overlap['grounding_score']*100:.1f}% < 65%): "

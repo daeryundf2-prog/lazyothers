@@ -137,3 +137,39 @@ def test_strict_evidence_blocks_ungrounded_paragraph():
         gld.generate(data, strict_evidence=True)
     assert "Strict Evidence Gate" in str(exc.value)
 
+
+def test_attributed_evidence_tags_supported():
+    data = json.loads(json.dumps(BASE))
+    data["facts"][0]["paragraphs"] = [
+        '<evidence source="bank_receipt.pdf">2024년 1월 16일 금 10,000,000원을 입금하였다.</evidence> 대여금을 지급하였습니다.'
+    ]
+    md = gld.generate(data, strict_evidence=True)
+    assert '<evidence source="bank_receipt.pdf">' in md
+
+
+def test_generate_legal_draft_source_cli(tmp_path):
+    facts_file = tmp_path / "facts.txt"
+    facts_file.write_text("2024년 1월 16일 금 10,000,000원을 입금하였다.", encoding="utf-8")
+
+    data = json.loads(json.dumps(BASE))
+    data["facts"][0]["paragraphs"] = [
+        "<evidence>2024년 1월 16일 금 10,000,000원을 입금하였다.</evidence> 원고는 피고에게 대여하였습니다."
+    ]
+    src = tmp_path / "draft.json"
+    src.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    out = tmp_path / "out.md"
+
+    # With matching source, passes with 0
+    res = gld.main(["--input-json", str(src), "--output", str(out), "--source", str(facts_file)])
+    assert res == 0
+    assert out.exists()
+
+    # With mismatched source, fails with 1
+    mismatch_file = tmp_path / "wrong.txt"
+    mismatch_file.write_text("전혀 다른 내용입니다.", encoding="utf-8")
+    out2 = tmp_path / "out2.md"
+    res_mismatch = gld.main(["--input-json", str(src), "--output", str(out2), "--source", str(mismatch_file)])
+    assert res_mismatch == 1
+    assert not out2.exists()
+
+

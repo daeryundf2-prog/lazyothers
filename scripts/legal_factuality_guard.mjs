@@ -108,6 +108,21 @@ function shouldAudit(filePath) {
 	return false;
 }
 
+function sourceCandidate(targetFile) {
+	const dir = path.dirname(path.resolve(targetFile));
+	const candidates = [
+		join(dir, "facts.json"),
+		join(dir, "facts.md"),
+		join(dir, "facts.txt"),
+		join(dir, "evidence.json"),
+		join(dir, "evidence.txt"),
+		join(dir, "evidence.md"),
+		join(dir, "source.md"),
+		join(dir, "source.txt"),
+	];
+	return candidates.find((p) => fs.existsSync(p));
+}
+
 async function main() {
 	const sources = await collectSources();
 	const targetFile = extractTarget(sources);
@@ -124,10 +139,16 @@ async function main() {
 		process.exit(0);
 	}
 
+	const srcFile = sourceCandidate(targetFile);
+	const verifyArgs = [verifyScript, targetFile, "--json"];
+	if (srcFile) {
+		verifyArgs.push("--source", srcFile);
+	}
+
 	const pyCandidates = process.platform === "win32" ? ["python", "py", "python3"] : ["python3", "python"];
 	let res = null;
 	for (const py of pyCandidates) {
-		res = spawnSync(py, [verifyScript, targetFile, "--json"], {
+		res = spawnSync(py, verifyArgs, {
 			cwd: root,
 			encoding: "utf-8",
 			windowsHide: true,

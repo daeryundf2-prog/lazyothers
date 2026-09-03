@@ -68,3 +68,13 @@ def test_cli_execution_with_temp_files(tmp_path):
 
     code = kmg.main(["--source", str(src_file), "--target", str(tgt_file), "--json"])
     assert code == 0
+
+
+def test_extract_legal_entities_does_not_extract_dates_as_precedents():
+    text = "2024년 5월 1일 및 2023년 12월 25일에 계약을 체결하였으며 대법원 2024다12345 판결을 참조합니다."
+    entities = kmg.extract_legal_entities(text)
+    # Ensure standard dates like 2024년5 are NOT included
+    assert "2024년5" not in entities["precedents"]
+    assert "2023년12" not in entities["precedents"]
+    assert "2024다12345" in entities["precedents"]
+

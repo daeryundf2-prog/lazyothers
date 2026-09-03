@@ -129,18 +129,36 @@ def extract_content_morphemes(text: str, min_len: int = 2) -> list[str]:
     return fallback_tokens
 
 
+VALID_CASE_CODES = {
+    "가단", "가합", "가소", "나", "다", "라", "마", "그", "바", "자", "차",
+    "카", "카단", "카합", "카기", "카담", "카조", "카열", "카경",
+    "고단", "고합", "고약", "노", "도", "로", "모", "오", "보", "코",
+    "드", "드단", "드합", "르", "르단", "르합", "므", "스", "으",
+    "느", "느단", "느합", "즈", "즈단", "즈합",
+    "회단", "회합", "회개", "개회", "개단", "개합", "하단", "하합", "하면", "개확",
+    "구", "구합", "구단", "누", "두", "루", "무", "허",
+    "헌가", "헌나", "헌다", "헌라", "헌마", "헌바", "헌사", "헌아",
+    "푸", "버",
+    "재가단", "재가합", "재다", "재나", "재도", "재노", "재고단", "재고합",
+}
+
+
 def extract_legal_entities(text: str) -> dict[str, list[str]]:
     """Extracts formal legal statutes, case codes, evidence labels, and key entities."""
     statute_re = re.compile(
         r"([가-힣]{2,20}(?:법률|법)?)\s*제\s*(\d+)\s*조(?:\s*의\s*(\d+))?"
     )
     precedent_re = re.compile(
-        r"(?:대법원|서울고등법원|헌법재판소)?\s*(\d{4})\s*([가-힣]{1,4})\s*(\d+)"
+        r"\b(?:대법원|서울고등법원|헌법재판소|[가-힣]{2,6}고등법원|[가-힣]{2,6}지방법원)?\s*(\d{4})\s*([가-힣]{1,4})\s*(\d+)\b"
     )
     evidence_re = re.compile(r"((?:갑|을|병)\s*제\s*\d+\s*호증(?:\s*의\s*\d+)?)")
 
     statutes = [m.group(0) for m in statute_re.finditer(text)]
-    precedents = [f"{m.group(1)}{m.group(2)}{m.group(3)}" for m in precedent_re.finditer(text)]
+    precedents = [
+        f"{m.group(1)}{m.group(2)}{m.group(3)}"
+        for m in precedent_re.finditer(text)
+        if m.group(2) in VALID_CASE_CODES
+    ]
     evidences = [m.group(1) for m in evidence_re.finditer(text)]
 
     # Morphological content nouns

@@ -129,7 +129,7 @@ def _facts_section(facts: list[dict], index: dict[str, str], strict_evidence: bo
         body = "\n\n".join(str(t) for t in paragraphs)
         lines.append(body)
         explicit_evidence = fact.get("evidence") or []
-        evidence_tags = re.findall(r"<evidence>(.*?)</evidence>", body, re.DOTALL)
+        evidence_tags = re.findall(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", body, re.DOTALL | re.IGNORECASE)
         line = method_line(body, explicit_evidence, index)
         if strict_evidence and not line and not evidence_tags:
             raise ValueError(
@@ -204,7 +204,7 @@ RENDERERS = {
 }
 
 
-def generate(data: dict, verify: bool = True, strict: bool = False, strict_evidence: bool = False) -> str:
+def generate(data: dict, verify: bool = True, strict: bool = False, strict_evidence: bool = False, source_text: str | None = None) -> str:
     doc_type = str(data.get("type", "소장")).strip()
     if doc_type not in DRAFT_TYPES:
         raise ValueError(f"type은 {DRAFT_TYPES} 중 하나여야 합니다: {doc_type!r}")
@@ -221,7 +221,7 @@ def generate(data: dict, verify: bool = True, strict: bool = False, strict_evide
     md = "\n".join(lines) + "\n"
 
     if verify and verify_legal_text is not None:
-        audit = verify_legal_text(md)
+        audit = verify_legal_text(md, source_text=source_text)
         if audit["errors"]:
             raise ValueError(f"법률 사실성 검증 실패: {'; '.join(audit['errors'])}")
         if strict and audit["warnings"]:
@@ -234,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="전자소송 규격 법률 문서 초안 생성기 (소장/준비서면/고소장/내용증명)")
     p.add_argument("--input-json", "-i", required=True, help="초안 재료 JSON (type/case_info/claims/facts/evidence_list)")
     p.add_argument("--output", "-o", default="", help="출력 마크다운 경로 (미지정 시 stdout)")
+    p.add_argument("--source", help="입증 원문 또는 사실관계 원본 파일 (.txt, .md, .json)")
     p.add_argument("--verify", dest="verify", action="store_true", default=True, help="조문 및 판례 사실성 검증 수행 (기본 활성)")
     p.add_argument("--no-verify", dest="verify", action="store_false", help="사실성 검증 건너뛰기")
     p.add_argument("--strict", action="store_true", help="경고 발생 시에도 실패 처리")
@@ -250,11 +251,29 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: JSON 파싱 실패: {exc}", file=sys.stderr)
         return 2
 
+    source_text = None
+    if args.source:
+        if not os.path.isfile(args.source):
+            print(f"error: 소스 파일을 찾을 수 없습니다: {args.source}", file=sys.stderr)
+            return 2
+        try:
+            with open(args.source, "r", encoding="utf-8") as f:
+                source_text = f.read()
+        except UnicodeDecodeError:
+            with open(args.source, "r", encoding="utf-8-sig", errors="replace") as f:
+                source_text = f.read()
+
     try:
-        md = generate(data, verify=args.verify, strict=args.strict, strict_evidence=args.strict_evidence)
+        md = generate(data, verify=args.verify, strict=args.strict, strict_evidence=args.strict_evidence, source_text=source_text)
     except ValueError as exc:
         msg = str(exc)
-        if "법률 사실성 검증 실패" in msg or "법률 경고 발생" in msg or "Strict Evidence Gate" in msg:
+        if (
+            "법률 사실성 검증 실패" in msg
+            or "Legal Factuality Verification Failed" in msg
+            or "법률 경고 발생" in msg
+            or "Legal Factuality Strict Gate Failed" in msg
+            or "Strict Evidence Gate" in msg
+        ):
             print(f"[FAIL] {msg}", file=sys.stderr)
             print("error: 허위 조문, 날조된 판례 또는 무근거 사실관계가 포함되어 초안 생성을 차단합니다.", file=sys.stderr)
             return 1
