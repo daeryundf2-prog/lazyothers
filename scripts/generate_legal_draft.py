@@ -198,7 +198,7 @@ RENDERERS = {
 }
 
 
-def generate(data: dict, verify: bool = False, strict: bool = False) -> str:
+def generate(data: dict, verify: bool = True, strict: bool = False) -> str:
     doc_type = str(data.get("type", "소장")).strip()
     if doc_type not in DRAFT_TYPES:
         raise ValueError(f"type은 {DRAFT_TYPES} 중 하나여야 합니다: {doc_type!r}")
@@ -244,27 +244,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        md = generate(data)
+        md = generate(data, verify=args.verify, strict=args.strict)
     except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    if args.verify and verify_legal_text is not None:
-        audit = verify_legal_text(md)
-        if audit["errors"]:
-            print(f"[FAIL] 법률 사실성 검증 실패 ({len(audit['errors'])}개 오류):", file=sys.stderr)
-            for err in audit["errors"]:
-                print(f"  - {err}", file=sys.stderr)
+        msg = str(exc)
+        if "법률 사실성 검증 실패" in msg or "법률 경고 발생" in msg:
+            print(f"[FAIL] {msg}", file=sys.stderr)
             print("error: 허위 조문 또는 날조된 판례가 포함되어 초안 생성을 차단합니다.", file=sys.stderr)
             return 1
-        if args.strict and audit["warnings"]:
-            print(f"[FAIL] 법률 경고 발생 (--strict 모드):", file=sys.stderr)
-            for w in audit["warnings"]:
-                print(f"  - {w}", file=sys.stderr)
-            return 1
-        if audit["warnings"]:
-            for w in audit["warnings"]:
-                print(f"[WARN] {w}", file=sys.stderr)
+        print(f"error: {msg}", file=sys.stderr)
+        return 2
+
+    if args.verify and verify_legal_text is not None and not args.strict:
+        audit = verify_legal_text(md)
+        for w in audit["warnings"]:
+            print(f"[WARN] {w}", file=sys.stderr)
 
     if args.output:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)

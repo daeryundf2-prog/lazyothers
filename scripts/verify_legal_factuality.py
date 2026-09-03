@@ -19,6 +19,13 @@ import re
 import sys
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Max article numbers for major Korean codes (as of 2026)
 STATUTE_BOUNDS = {
     "민법": 1118,
@@ -35,7 +42,25 @@ STATUTE_BOUNDS = {
     "부정경쟁방지 및 영업비밀보호에 관한 법률": 18,
     "전자문서법": 37,
     "전자문서 및 전자거래 기본법": 37,
+    "특정금융정보법": 22,
+    "특정 금융거래정보의 보고 및 이용 등에 관한 법률": 22,
+    "전자상거래법": 45,
+    "전자상거래 등에서의 소비자보호에 관한 법률": 45,
+    "자본시장법": 449,
+    "자본시장과 금융투자업에 관한 법률": 449,
+    "신용정보법": 53,
+    "신용정보의 이용 및 보호에 관한 법률": 53,
+    "소비자기본법": 86,
+    "가사소송법": 72,
+    "특허법": 232,
+    "저작권법": 142,
 }
+
+def _make_statute_pattern(statute_name: str) -> re.Pattern:
+    clean_name = re.sub(r"\s+", "", statute_name)
+    escaped_chars = [re.escape(c) for c in clean_name]
+    pattern_str = r"\s*".join(escaped_chars) + r"\s*제\s*(\d+)\s*조(?:\s*의\s*(\d+))?"
+    return re.compile(pattern_str)
 
 # Standard Korean court precedent symbol categories
 VALID_CASE_CODES = {
@@ -72,16 +97,23 @@ def verify_legal_text(text: str, current_year: int = 2026) -> dict:
     cited_statutes: list[str] = []
     cited_precedents: list[str] = []
 
-    # 1. Statutory bounds check
-    for statute_name, max_art in STATUTE_BOUNDS.items():
-        pattern = re.compile(rf"{re.escape(statute_name)}\s*제\s*(\d+)\s*조(?:\s*의\s*(\d+))?")
+    # 1. Statutory bounds check (flexible spacing & span deduplication)
+    matched_spans: list[tuple[int, int]] = []
+    sorted_statutes = sorted(STATUTE_BOUNDS.items(), key=lambda x: len(x[0]), reverse=True)
+
+    for statute_name, max_art in sorted_statutes:
+        pattern = _make_statute_pattern(statute_name)
         for match in pattern.finditer(text):
+            span = match.span()
+            if any(s <= span[0] and span[1] <= e for s, e in matched_spans):
+                continue
+            matched_spans.append(span)
             art_num = int(match.group(1))
             full_ref = match.group(0)
             cited_statutes.append(full_ref)
             if art_num < 1 or art_num > max_art:
                 errors.append(
-                    f"[{statute_name}] 허위 조문 날조: {full_ref} — "
+                    f"[{statute_name}] 허위 조문 날조: {full_ref} - "
                     f"현행 {statute_name}은 제1조~제{max_art}조까지만 존재합니다."
                 )
 
@@ -95,7 +127,7 @@ def verify_legal_text(text: str, current_year: int = 2026) -> dict:
 
         if year > current_year:
             errors.append(
-                f"[판례 날조] 미래 연도 판결 인용: {case_str} — "
+                f"[판례 날조] 미래 연도 판결 인용: {case_str} - "
                 f"현재 연도({current_year}년)보다 미래의 사건번호는 날조된 환각입니다."
             )
         elif year < 1948:
@@ -105,7 +137,7 @@ def verify_legal_text(text: str, current_year: int = 2026) -> dict:
 
         if code not in VALID_CASE_CODES:
             warnings.append(
-                f"[판례 부호 의심] 비표준 사건부호 인용: '{code}' in {case_str} — "
+                f"[판례 부호 의심] 비표준 사건부호 인용: '{code}' in {case_str} - "
                 f"대법원 규격 사건부호 여부를 확인하십시오."
             )
 

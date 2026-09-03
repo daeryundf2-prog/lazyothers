@@ -119,3 +119,41 @@ def test_legal_factuality_guard_target_file_key(tmp_path):
     assert "민법" in proc.stderr or "LEGAL FACTUALITY GUARD" in proc.stderr
 
 
+def test_flexible_spacing_statute_names_checked():
+    # Spaced statute names (official spacing like 개인정보 보호법) must be caught
+    text_pii = "피고는 개인정보 보호법 제100조를 위반하였다."
+    res_pii = vlf.verify_legal_text(text_pii)
+    assert res_pii["verdict"] == "FAIL"
+    assert any("개인정보" in e and "제100조" in e for e in res_pii["errors"])
+
+    text_labor = "근로 기준법 제120조에 기한 청구."
+    res_labor = vlf.verify_legal_text(text_labor)
+    assert res_labor["verdict"] == "FAIL"
+    assert any("근로기준법" in e and "제120조" in e for e in res_labor["errors"])
+
+    text_secret = "부정경쟁방지 및 영업비밀 보호에 관한 법률 제20조 위반."
+    res_secret = vlf.verify_legal_text(text_secret)
+    assert res_secret["verdict"] == "FAIL"
+    assert any("부정경쟁방지" in e and "제20조" in e for e in res_secret["errors"])
+
+
+def test_legal_factuality_guard_file_key(tmp_path):
+    import subprocess
+    guard_script = SCRIPT_DIR / "legal_factuality_guard.mjs"
+    bad_file = tmp_path / "답변서_검토.md"
+    bad_file.write_text("원고의 주장은 형사 소송법 제500조에 비추어 타당하지 않습니다.", encoding="utf-8")
+
+    # Pass filename key as JSON payload
+    payload = json.dumps({"filename": str(bad_file)})
+    proc = subprocess.run(
+        ["node", str(guard_script)],
+        input=payload,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 1
+    assert "형사소송법" in proc.stderr or "LEGAL FACTUALITY GUARD" in proc.stderr
+
+
+
