@@ -18,10 +18,14 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 > `korean_law_mcp_wrapper.mjs`가 `lazyforensic`의 전체 API 서버 또는 `lazyantigravity`의 오프라인 랜드마크 법률/판례 DB를 자동 감지하여 투명하게 연동합니다.
 > 작성된 모든 법률 검토 결과물은 `verify_legal_factuality.py`를 통해 실존 법령 상한선 및 판례 번호 규칙에 대해 기계적으로 전수 감사됩니다.
 
-## 기계적 사실성 게이트
+## 기계적 사실성 및 High-Fidelity 게이트
 
 ```bash
-python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 법률검토서.md --json
+# 사실성 및 Kiwi 형태소 하이브리드 그라운딩 검증
+python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 법률검토서.md --source 사실관계.txt --morph-grounding --high-fidelity --strict --json
+
+# Kiwi 형태소 렉시컬 그라운딩 단독 분석
+python ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 사실관계.txt --target 법률검토서.md --high-fidelity --json
 ```
 
 ## 설치

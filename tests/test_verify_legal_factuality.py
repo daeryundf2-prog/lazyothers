@@ -208,6 +208,59 @@ def test_evidence_tag_attribution_and_grounding():
     assert any("대조할 원문(--source)이 지정되지 않았습니다" in w for w in res_no_source["warnings"])
 
 
+def test_high_fidelity_mode_verifications():
+    source_facts = "원고는 피고에게 대여금 일천만원을 지급하였고 변제기일은 2024년 12월 31일이다."
+
+    # 1. High-fidelity fails without source
+    draft = "<evidence>원고는 피고에게 대여금 일천만원을 지급하였고</evidence>\n대여금 청구."
+    res_no_src = vlf.verify_legal_text(draft, source_text=None, high_fidelity=True)
+    assert res_no_src["verdict"] == "FAIL"
+    assert any("원문(--source)이 지정되지 않았습니다" in e for e in res_no_src["errors"])
+
+    # 2. High-fidelity fails without evidence tag
+    draft_no_ev = "원고는 피고에게 대여금 일천만원을 지급하였고 변제기일은 2024년 12월 31일이다."
+    res_no_ev = vlf.verify_legal_text(draft_no_ev, source_text=source_facts, high_fidelity=True)
+    assert res_no_ev["verdict"] == "FAIL"
+    assert any("<evidence> 원문 인용 태그가 없습니다" in e for e in res_no_ev["errors"])
+
+    # 3. High-fidelity passes with evidence tag and high morphological overlap
+    draft_ok = (
+        "<evidence>원고는 피고에게 대여금 일천만원을 지급하였고 변제기일은 2024년 12월 31일이다.</evidence>\n"
+        "원고는 피고에게 대여금 일천만원 지급을 청구합니다."
+    )
+    res_ok = vlf.verify_legal_text(draft_ok, source_text=source_facts, high_fidelity=True)
+    assert res_ok["verdict"] == "PASS"
+    assert len(res_ok["errors"]) == 0
+
+
+def test_cli_morph_grounding_and_high_fidelity(tmp_path):
+    import subprocess
+    vlf_script = SCRIPT_DIR / "verify_legal_factuality.py"
+
+    src_file = tmp_path / "source.txt"
+    src_file.write_text("원고와 피고는 차용증을 작성하고 금전을 대여하였다.", encoding="utf-8")
+
+    draft_file = tmp_path / "draft.md"
+    draft_file.write_text(
+        "<evidence>원고와 피고는 차용증을 작성하고 금전을 대여하였다.</evidence>\n"
+        "원고와 피고 사이의 차용증 작성 및 금전 대여 관계가 성립합니다.",
+        encoding="utf-8",
+    )
+
+    # Run with --morph-grounding and --high-fidelity
+    proc = subprocess.run(
+        [sys.executable, str(vlf_script), str(draft_file), "--source", str(src_file), "--morph-grounding", "--high-fidelity", "--json"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    assert data["verdict"] == "PASS"
+    assert len(data["errors"]) == 0
+
+
+
 
 
 

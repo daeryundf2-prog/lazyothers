@@ -19,7 +19,8 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
     *   증거설명서는 실제 증거 JSON 없이 생성하면 본문 머리/끝에 **"[샘플 자동 생성본 — 법원 제출 금지]"** 워터마크가 들어갑니다.
 *   **`legal-case-search`**: 국가법령정보센터 Open API 및 대법원 판례 시맨틱 검색. (`lazyforensic` 플러그인 설치 시 활성화, optional)
 *   **`korean-pii-masker`**: 주민등록번호(체크섬 검증)·전화·계좌·이메일 자동 마스킹으로 제출본 비식별화. 날짜 오탐 방지, 처리 통계 리포트. (`scripts/mask_korean_pii.py`)
-*   **`court-ruling-analyzer`**: 판결문 섹션 분할(주문/이유/사실), 인용 법령 조문·선고 판례 전수 추출, 쟁점 요약표 골격 생성. (`scripts/analyze_court_ruling.py`)
+*   **`court-ruling-analyzer`**: 판결문 섹션 분할(주문/이유/사실), 인용 법령 조문·선고 판례 전수 추출, 쟁점 요약표 골격 생성. (`scripts/analyze_court_ruling.py`, `--verify`, `--morph-grounding`, `--high-fidelity`)
+*   **`verify-legal-factuality` & `korean-morph-grounding`**: 법률 문서 조문 상한(민법 1118조 등), 판례 연도·사건부호, 가짜 법원명칭 차단 및 Kiwi 형태소 하이브리드 어휘 일치도 감사, Vertex AI High-Fidelity 비파라메트릭 게이트. (`scripts/verify_legal_factuality.py`, `scripts/korean_morph_grounding.py`)
 
 ### 3. 디지털 포렌식·증거 분석 (Forensic & Evidence)
 *   **`evidence-integrity-audit`**: 증거 폴더 전수 SHA-256/MD5/SHA-1 감사, 제출용 보고서 기재 해시와의 대조([일치/불일치/미측정] 판정표), 무결성 증명서(Chain of Custody Verification Sheet) 자동 생성. (`scripts/audit_evidence_integrity.py`)

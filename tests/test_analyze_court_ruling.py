@@ -115,3 +115,18 @@ def test_verify_strict_mode_blocks_hallucinated_ruling(tmp_path):
     out = tmp_path / "blocked.md"
     assert acr.main([str(bad_ruling), "--verify", "--strict", "-o", str(out)]) == 1
     assert not out.exists()
+
+
+def test_analyze_court_ruling_with_source_and_morph_grounding(tmp_path):
+    src_file = tmp_path / "reference_facts.txt"
+    src_file.write_text("원고와 피고는 민법 제750조에 의하여 손해배상을 청구하였다.", encoding="utf-8")
+
+    ruling_file = tmp_path / "ruling.txt"
+    ruling_file.write_text("【주 문】\n피고는 원고에게 손해배상금을 지급하라.\n【이 유】\n민법 제750조에 근거한다.", encoding="utf-8")
+
+    out_json = tmp_path / "result.json"
+    rc = acr.main([str(ruling_file), "--source", str(src_file), "--morph-grounding", "--json", "-o", str(out_json)])
+    assert rc == 0
+    data = json.loads(out_json.read_text(encoding="utf-8"))
+    assert "factuality_audit" in data
+    assert data["factuality_audit"]["verdict"] in ("PASS", "WARN")

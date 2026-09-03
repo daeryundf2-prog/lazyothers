@@ -78,3 +78,22 @@ def test_extract_legal_entities_does_not_extract_dates_as_precedents():
     assert "2023년12" not in entities["precedents"]
     assert "2024다12345" in entities["precedents"]
 
+
+def test_korean_morph_grounding_high_fidelity(tmp_path):
+    src_file = tmp_path / "source.txt"
+    src_file.write_text("원고와 피고는 대여금 계약을 체결하고 차용증을 작성하였다.", encoding="utf-8")
+
+    # Has novel unsupported terms
+    tgt_file_fail = tmp_path / "target_fail.txt"
+    tgt_file_fail.write_text("피고는 사기 및 횡령으로 원고를 기망하였다.", encoding="utf-8")
+
+    code_fail = kmg.main(["--source", str(src_file), "--target", str(tgt_file_fail), "--high-fidelity", "--json"])
+    assert code_fail == 1
+
+    # Supported overlap passes
+    tgt_file_pass = tmp_path / "target_pass.txt"
+    tgt_file_pass.write_text("원고와 피고는 대여금 계약을 체결하고 차용증을 작성하였습니다.", encoding="utf-8")
+
+    code_pass = kmg.main(["--source", str(src_file), "--target", str(tgt_file_pass), "--high-fidelity", "--json"])
+    assert code_pass == 0
+

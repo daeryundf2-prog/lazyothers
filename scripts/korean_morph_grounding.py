@@ -172,10 +172,21 @@ def extract_legal_entities(text: str) -> dict[str, list[str]]:
     }
 
 
+LEGAL_PROCEDURAL_TERMS = {
+    "소장", "준비서면", "고소장", "답변서", "내용증명", "청구취지", "청구원인", "청구", "취지", "원인",
+    "원고", "피고", "고소인", "피고소인", "당사자", "귀중", "사건", "사건번호", "입증방법", "입증",
+    "서증", "서증명", "서증부호", "증거", "목록", "순번", "번호", "첨부서류", "첨부", "제출", "법원",
+    "결론", "이유", "주문", "판결", "기각", "인용", "지급", "금원", "해당", "관할", "고지", "작성",
+    "작성일자", "일자", "생성물", "변호사", "검토", "필수", "안내", "대리인", "소송대리인", "기재",
+    "관계", "성립", "사실", "확인", "인정", "존재", "부존재", "경위", "내용", "취득", "부담", "발생",
+}
+
+
 def calculate_grounding_overlap(
     source_text: str,
     target_text: str,
     threshold: float = 0.70,
+    filter_procedural: bool = False,
 ) -> dict[str, Any]:
     """Calculates morphological grounding overlap between source evidence and target text.
 
@@ -183,12 +194,15 @@ def calculate_grounding_overlap(
         source_text: Ground truth evidence, input facts, or statutory text.
         target_text: Generated legal draft, summary, or argument.
         threshold: Minimum grounding ratio (0.0 to 1.0) to pass.
+        filter_procedural: If True, strips standard procedural boilerplate terms from target.
 
     Returns:
         dict with overlap metrics, unsupported terms, and pass/fail verdict.
     """
     source_terms = set(extract_content_morphemes(source_text))
     target_terms = set(extract_content_morphemes(target_text))
+    if filter_procedural:
+        target_terms = target_terms - LEGAL_PROCEDURAL_TERMS
 
     if not target_terms:
         return {
@@ -224,6 +238,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target", help="Target generated draft / claim file (.txt, .md)")
     parser.add_argument("--text", help="Direct Korean text string to analyze")
     parser.add_argument("--threshold", type=float, default=0.70, help="Minimum grounding threshold")
+    parser.add_argument("--filter-procedural", action="store_true", help="Filter court procedural boilerplate terms")
+    parser.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding")
     parser.add_argument("--json", action="store_true", help="Output result as JSON")
     args = parser.parse_args(argv)
 
@@ -251,12 +267,23 @@ def main(argv: list[str] | None = None) -> int:
         src_text = source_path.read_text(encoding="utf-8", errors="replace")
         tgt_text = target_path.read_text(encoding="utf-8", errors="replace")
 
-        result = calculate_grounding_overlap(src_text, tgt_text, threshold=args.threshold)
+        eff_threshold = max(args.threshold, 0.70) if args.high_fidelity else args.threshold
+        result = calculate_grounding_overlap(
+            src_text,
+            tgt_text,
+            threshold=eff_threshold,
+            filter_procedural=args.filter_procedural,
+        )
+        if args.high_fidelity:
+            result["high_fidelity"] = True
+
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             verdict = "PASS" if result["is_grounded"] else "FAIL"
-            print(f"[{verdict}] Morphological Grounding Score: {result['grounding_score'] * 100:.1f}% (Threshold: {args.threshold * 100:.0f}%)")
+            prefix = "[PASS]" if result["is_grounded"] else "[FAIL]"
+            mode_label = " (High-Fidelity Mode)" if args.high_fidelity else ""
+            print(f"{prefix} Morphological Grounding Score{mode_label}: {result['grounding_score'] * 100:.1f}% (Threshold: {eff_threshold * 100:.0f}%)")
             print(f"  - Supported Terms: {result['overlap_count']} / {result['target_term_count']}")
             if result["unsupported_terms"]:
                 print(f"  - Unsupported Novel Terms ({len(result['unsupported_terms'])}): {result['unsupported_terms'][:10]}")

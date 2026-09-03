@@ -174,6 +174,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--output", "-o", default="", help="출력 경로 (미지정 시 stdout)")
     p.add_argument("--json", action="store_true", help="JSON으로 출력 (섹션 원문 포함 — 에이전트 요약용)")
     p.add_argument("--verify", action="store_true", help="인용 법령 및 판례에 대한 사실성 및 경계값 검증 수행")
+    p.add_argument("--source", help="Optional reference source file for grounding verification")
+    p.add_argument("--morph-grounding", action="store_true", help="Kiwi morphological grounding check against source")
+    p.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding")
     p.add_argument("--strict", action="store_true", help="사실성 검증 실패 시 에러 종료")
     args = p.parse_args(argv)
 
@@ -186,15 +189,25 @@ def main(argv: list[str] | None = None) -> int:
         print("error: 입력이 비어 있습니다 (스캔본이면 OCR이 필요합니다)", file=sys.stderr)
         return 2
 
+    source_text = None
+    if args.source and os.path.isfile(args.source):
+        with open(args.source, "r", encoding="utf-8", errors="replace") as sf:
+            source_text = sf.read()
+
     sections = split_sections(text)
     subsections = find_subsections(text)
     laws = extract_laws(text)
     precedents = extract_precedents(text)
 
     audit = None
-    if args.verify and verify_legal_text is not None:
-        audit = verify_legal_text(text)
-        if args.strict and audit.get("errors"):
+    if (args.verify or args.high_fidelity or args.morph_grounding) and verify_legal_text is not None:
+        audit = verify_legal_text(
+            text,
+            source_text=source_text,
+            morph_grounding=args.morph_grounding,
+            high_fidelity=args.high_fidelity,
+        )
+        if (args.strict or args.high_fidelity) and audit.get("errors"):
             print(f"[FAIL] 판결문 인용 사실성 검증 실패 ({len(audit['errors'])}건 오류):", file=sys.stderr)
             for err in audit["errors"]:
                 print(f"  - {err}", file=sys.stderr)

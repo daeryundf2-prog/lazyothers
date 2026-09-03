@@ -204,7 +204,15 @@ RENDERERS = {
 }
 
 
-def generate(data: dict, verify: bool = True, strict: bool = False, strict_evidence: bool = False, source_text: str | None = None) -> str:
+def generate(
+    data: dict,
+    verify: bool = True,
+    strict: bool = False,
+    strict_evidence: bool = False,
+    source_text: str | None = None,
+    morph_grounding: bool = False,
+    high_fidelity: bool = False,
+) -> str:
     doc_type = str(data.get("type", "소장")).strip()
     if doc_type not in DRAFT_TYPES:
         raise ValueError(f"type은 {DRAFT_TYPES} 중 하나여야 합니다: {doc_type!r}")
@@ -213,19 +221,25 @@ def generate(data: dict, verify: bool = True, strict: bool = False, strict_evide
     facts = data.get("facts") or []
     evidence_list = data.get("evidence_list") or []
 
+    eff_strict_evidence = strict_evidence or high_fidelity
     lines = [DISCLAIMER, ""]
-    lines += RENDERERS[doc_type](case_info, claims, facts, evidence_list, strict_evidence=strict_evidence)
+    lines += RENDERERS[doc_type](case_info, claims, facts, evidence_list, strict_evidence=eff_strict_evidence)
     lines.append("---\n")
     lines.append(f"**작성(초안 생성)일자:** {datetime.now().strftime('%Y년 %m월 %d일')}")
     lines.append("**고지:** 본 초안은 AI 생성물입니다. 법률 용어·청구 원인 구성·증거 번호 체계는 변호사 검토가 필수입니다.")
     md = "\n".join(lines) + "\n"
 
     if verify and verify_legal_text is not None:
-        audit = verify_legal_text(md, source_text=source_text)
+        audit = verify_legal_text(
+            md,
+            source_text=source_text,
+            morph_grounding=morph_grounding,
+            high_fidelity=high_fidelity,
+        )
         if audit["errors"]:
             raise ValueError(f"법률 사실성 검증 실패: {'; '.join(audit['errors'])}")
-        if strict and audit["warnings"]:
-            raise ValueError(f"법률 경고 발생 (--strict): {'; '.join(audit['warnings'])}")
+        if (strict or high_fidelity) and audit["warnings"]:
+            raise ValueError(f"법률 경고 발생 (--strict/--high-fidelity): {'; '.join(audit['warnings'])}")
 
     return md
 
@@ -239,11 +253,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-verify", dest="verify", action="store_false", help="사실성 검증 건너뛰기")
     p.add_argument("--strict", action="store_true", help="경고 발생 시에도 실패 처리")
     p.add_argument("--strict-evidence", action="store_true", help="사실관계 항목마다 명시적 서증 또는 <evidence> 태그 인용 강제")
+    p.add_argument("--morph-grounding", action="store_true", help="Kiwi 형태소 기반 하이브리드 그라운딩 검증")
+    p.add_argument("--high-fidelity", action="store_true", help="Vertex AI High-Fidelity strict non-parametric grounding gate")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input_json):
         print(f"error: 입력 JSON을 찾을 수 없습니다: {args.input_json}", file=sys.stderr)
         return 2
+
+    if args.high_fidelity and not args.source:
+        print("error: High-Fidelity 모드에는 --source 원문 파일 지정이 필수입니다.", file=sys.stderr)
+        return 1
     try:
         with open(args.input_json, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -264,7 +284,15 @@ def main(argv: list[str] | None = None) -> int:
                 source_text = f.read()
 
     try:
-        md = generate(data, verify=args.verify, strict=args.strict, strict_evidence=args.strict_evidence, source_text=source_text)
+        md = generate(
+            data,
+            verify=args.verify,
+            strict=args.strict,
+            strict_evidence=args.strict_evidence,
+            source_text=source_text,
+            morph_grounding=args.morph_grounding,
+            high_fidelity=args.high_fidelity,
+        )
     except ValueError as exc:
         msg = str(exc)
         if (

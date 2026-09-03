@@ -98,7 +98,13 @@ FABRICATED_COURT_RE = re.compile(
 EVIDENCE_TAG_RE = re.compile(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", re.DOTALL | re.IGNORECASE)
 
 
-def verify_legal_text(text: str, current_year: int = 2026, source_text: str | None = None) -> dict:
+def verify_legal_text(
+    text: str,
+    current_year: int = 2026,
+    source_text: str | None = None,
+    morph_grounding: bool = False,
+    high_fidelity: bool = False,
+) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
     cited_statutes: list[str] = []
@@ -174,8 +180,15 @@ def verify_legal_text(text: str, current_year: int = 2026, source_text: str | No
                 f"<evidence> 인용 구절('{q_strip[:25]}...')이 존재하나 대조할 원문(--source)이 지정되지 않았습니다."
             )
 
-    # 5. Morphological grounding check if source text is provided (Section 5.2)
-    if source_text:
+    # 5. High-Fidelity non-parametric gate (Section 4.2)
+    if high_fidelity:
+        if not source_text:
+            errors.append("[High-Fidelity Grounding 위반] High-Fidelity 검증을 위한 원문(--source)이 지정되지 않았습니다.")
+        elif not evidence_matches:
+            errors.append("[High-Fidelity Grounding 위반] 사실관계 주장을 뒷받침하는 <evidence> 원문 인용 태그가 없습니다.")
+
+    # 6. Morphological grounding check if source text is provided (Section 5.2)
+    if source_text and (morph_grounding or high_fidelity or True):
         try:
             from scripts.korean_morph_grounding import calculate_grounding_overlap
         except ImportError:
@@ -185,15 +198,27 @@ def verify_legal_text(text: str, current_year: int = 2026, source_text: str | No
                 calculate_grounding_overlap = None
 
         if calculate_grounding_overlap is not None:
-            clean_tgt = re.sub(r"<[^>]+>", " ", text)
-            overlap = calculate_grounding_overlap(source_text, clean_tgt, threshold=0.65)
+            # If target text has dedicated factual sections, isolate them to avoid boilerplate dilution
+            fact_section_match = re.search(
+                r"##\s*(?:청구원인|주장 및 항변|범죄사실|사실관계|통고 내용)\b(.*?)(?=\n##|\Z)",
+                text,
+                re.DOTALL,
+            )
+            eval_target = fact_section_match.group(1) if fact_section_match else text
+            clean_tgt = re.sub(r"<[^>]+>", " ", eval_target)
+            thresh = 0.65
+            overlap = calculate_grounding_overlap(source_text, clean_tgt, threshold=thresh, filter_procedural=True)
             if not overlap["is_grounded"]:
-                warnings.append(
-                    f"형태소 그라운딩 미달 ({overlap['grounding_score']*100:.1f}% < 65%): "
+                msg = (
+                    f"형태소 그라운딩 미달 ({overlap['grounding_score']*100:.1f}% < {int(thresh*100)}%): "
                     f"원문에 없는 고유/전문 용어 다수 사용 {overlap['unsupported_terms'][:5]}"
                 )
+                if high_fidelity:
+                    errors.append(f"[High-Fidelity Grounding 위반] {msg}")
+                else:
+                    warnings.append(msg)
 
-    # 6. Grounding notice check for legal drafts
+    # 7. Grounding notice check for legal drafts
     if "# 소 장" in text or "# 준 비 서 면" in text or "# 고 소 장" in text:
         if "변호사" not in text and "AI 생성" not in text:
             warnings.append("법률 문서 초안에 필수 법적 고지(변호사 검토 안내)가 누락되었습니다.")
@@ -208,7 +233,13 @@ def verify_legal_text(text: str, current_year: int = 2026, source_text: str | No
     }
 
 
-def verify_legal_file(file_path: str | Path, current_year: int = 2026, source_path: str | Path | None = None) -> dict:
+def verify_legal_file(
+    file_path: str | Path,
+    current_year: int = 2026,
+    source_path: str | Path | None = None,
+    morph_grounding: bool = False,
+    high_fidelity: bool = False,
+) -> dict:
     path = Path(file_path)
     if not path.is_file():
         return {
@@ -229,7 +260,13 @@ def verify_legal_file(file_path: str | Path, current_year: int = 2026, source_pa
         if sp.is_file():
             source_text = sp.read_text(encoding="utf-8", errors="replace")
 
-    return verify_legal_text(content, current_year=current_year, source_text=source_text)
+    return verify_legal_text(
+        content,
+        current_year=current_year,
+        source_text=source_text,
+        morph_grounding=morph_grounding,
+        high_fidelity=high_fidelity,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -238,11 +275,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("file", help="Path to legal document (.md, .txt) to verify")
     parser.add_argument("--source", help="Optional path to source evidence/facts for grounding check")
+    parser.add_argument("--morph-grounding", action="store_true", help="Enforce Kiwi morphological hybrid grounding check against source")
+    parser.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding mode")
     parser.add_argument("--json", action="store_true", help="Output JSON results")
     parser.add_argument("--strict", action="store_true", help="Fail on warnings as well")
     args = parser.parse_args(argv)
 
-    result = verify_legal_file(args.file, source_path=args.source)
+    result = verify_legal_file(
+        args.file,
+        source_path=args.source,
+        morph_grounding=args.morph_grounding,
+        high_fidelity=args.high_fidelity,
+    )
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -173,3 +173,26 @@ def test_generate_legal_draft_source_cli(tmp_path):
     assert not out2.exists()
 
 
+def test_generate_legal_draft_high_fidelity(tmp_path):
+    facts_file = tmp_path / "facts.txt"
+    facts_file.write_text("2024년 1월 16일 금 10,000,000원을 입금하였다. 원고는 피고에게 대여하였습니다.", encoding="utf-8")
+
+    data = json.loads(json.dumps(BASE))
+    data["facts"][0]["paragraphs"] = [
+        "<evidence>2024년 1월 16일 금 10,000,000원을 입금하였다.</evidence> 원고는 피고에게 대여하였습니다."
+    ]
+    src = tmp_path / "draft.json"
+    src.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    # High fidelity requires --source (fails if omitted)
+    out1 = tmp_path / "out_no_source.md"
+    res_no_source = gld.main(["--input-json", str(src), "--output", str(out1), "--high-fidelity"])
+    assert res_no_source == 1
+
+    # High fidelity with valid source succeeds
+    out2 = tmp_path / "out_hf_pass.md"
+    res_pass = gld.main(["--input-json", str(src), "--output", str(out2), "--source", str(facts_file), "--high-fidelity"])
+    assert res_pass == 0
+    assert out2.exists()
+
+
