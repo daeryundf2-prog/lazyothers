@@ -16,8 +16,11 @@ description: "판결문 구조 분석 스킬 — 주문/이유/사실 섹션 분
 python ${PLUGIN_ROOT}/scripts/parse_korean_doc.py 판결문.pdf -o 판결문.json
 python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt -o 분석.md
 
-# 2. 섹션 원문까지 포함한 JSON (에이전트 요약 입력용)
-python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --json -o 구조.json
+# 2. 사실성 및 조문/판례 상한 검증 포함 분석 (Factuality Audit)
+python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --verify -o 분석_검증완료.md
+
+# 3. 섹션 원문까지 포함한 JSON (에이전트 요약 입력용, --verify 지원)
+python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --json --verify -o 구조.json
 ```
 
 ## 산출물

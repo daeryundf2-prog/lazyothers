@@ -41,6 +41,21 @@ python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o
   문단 뒤에 결합한다. `facts[].evidence`로 명시 지정도 가능하다.
 - **고지 강제**: 헤더와 푸터에 변호사 검토 전제 고지가 들어간다. 제거 금지.
 
+## 법률 사실성 검증 (Anti-Hallucination Gate)
+
+`generate_legal_draft.py`는 대한민국 주요 법령의 조문 상한 경계(`STATUTE_BOUNDS`, 예: 민법 1118조, 형법 372조)와 대법원 판례 연도(1948~2026년) 및 사건부호 규칙을 기계적으로 자동 검증합니다.
+
+```bash
+# 초안 생성 시 자동 사실성 검증 수행 (허위 조문이나 미래 연도 판례 발견 시 즉각 차단)
+python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o 소장_초안.md
+
+# 작성된 마크다운 초안의 조문/판례 사실성 단독 검사
+python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 소장_초안.md --json
+```
+
+- 허위 조문(예: 민법 제1500조) 또는 가짜 판례가 감지되면 exit 1로 생성이 차단됩니다.
+- 포스트툴유즈 훅(`legal_factuality_guard.mjs`) 역시 새로 쓰인 법률 문서에 대해 FAIL_CLOSED 원칙으로 위반을 차단합니다.
+
 ## HWPX 변환 (제출용 서식이 필요할 때)
 
 마크다운 초안은 `kordoc` MCP의 `generate_document`로 HWPX로 변환할 수 있다

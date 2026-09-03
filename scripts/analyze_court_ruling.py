@@ -26,6 +26,14 @@ import os
 import re
 import sys
 
+try:
+    from verify_legal_factuality import verify_legal_text
+except ImportError:
+    try:
+        from scripts.verify_legal_factuality import verify_legal_text
+    except ImportError:
+        verify_legal_text = None
+
 # 주요 섹션 헤더: 【주 문】 / 주 문 / (주 문) 등 짧은 단독 행
 _PRIMARY_RE = re.compile(r"^\s*[【(\[]?\s*(주\s*문|이\s*유|사\s*실|증\s*거|판\s*단|결\s*론)\s*[】)\]]?\s*$")
 # 하위 구간: "1. 원고의 주장" / "2. 피고들의 항변에 대하여" / "가. 위 …에 대한 판단"
@@ -106,7 +114,13 @@ ISSUE_TABLE_SKELETON = """| 쟁점 | 원고 주장 | 피고 주장 | 법원 판�
 | {쟁점2} | {요지} | {요지} | {요지} |"""
 
 
-def render_markdown(sections: list[dict], subsections: list[str], laws: list[str], precedents: list[str]) -> str:
+def render_markdown(
+    sections: list[dict],
+    subsections: list[str],
+    laws: list[str],
+    precedents: list[str],
+    audit: dict | None = None,
+) -> str:
     lines = ["# 판결문 구조 분석\n"]
 
     lines.append("## 섹션 구조\n")
@@ -134,6 +148,20 @@ def render_markdown(sections: list[dict], subsections: list[str], laws: list[str
     else:
         lines.append("- (선고 형식의 판례 인용을 발견하지 못했다)")
 
+    if audit:
+        lines.append("\n## 인용 법령·판례 무결성 검증 (Factuality Audit)\n")
+        lines.append(f"- **검증 결과:** `{audit['verdict']}`")
+        if audit.get("errors"):
+            lines.append(f"- **오류 ({len(audit['errors'])}건):**")
+            for err in audit["errors"]:
+                lines.append(f"  - ❌ {err}")
+        if audit.get("warnings"):
+            lines.append(f"- **주의 ({len(audit['warnings'])}건):**")
+            for warn in audit["warnings"]:
+                lines.append(f"  - ⚠️ {warn}")
+        if not audit.get("errors") and not audit.get("warnings"):
+            lines.append(f"- ✅ 모든 인용 법령 및 판례의 형식과 경계가 검증되었습니다.")
+
     lines.append("\n## 쟁점 요약표 (골격 — 에이전트·사람이 채운다)\n")
     lines.append(ISSUE_TABLE_SKELETON)
     lines.append("\n> 위 표의 판단 요지는 원문에서 인용해 채우고, 의역이 필요하면 윤문은 humanize-korean으로 하되 법률 용어는 유지하십시오.")
@@ -145,6 +173,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("input", help="판결문 텍스트 파일 (parse_korean_doc 출력 권장)")
     p.add_argument("--output", "-o", default="", help="출력 경로 (미지정 시 stdout)")
     p.add_argument("--json", action="store_true", help="JSON으로 출력 (섹션 원문 포함 — 에이전트 요약용)")
+    p.add_argument("--verify", action="store_true", help="인용 법령 및 판례에 대한 사실성 및 경계값 검증 수행")
+    p.add_argument("--strict", action="store_true", help="사실성 검증 실패 시 에러 종료")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input):
@@ -161,6 +191,15 @@ def main(argv: list[str] | None = None) -> int:
     laws = extract_laws(text)
     precedents = extract_precedents(text)
 
+    audit = None
+    if args.verify and verify_legal_text is not None:
+        audit = verify_legal_text(text)
+        if args.strict and audit.get("errors"):
+            print(f"[FAIL] 판결문 인용 사실성 검증 실패 ({len(audit['errors'])}건 오류):", file=sys.stderr)
+            for err in audit["errors"]:
+                print(f"  - {err}", file=sys.stderr)
+            return 1
+
     if args.json:
         lines = text.splitlines()
         body = {
@@ -176,9 +215,11 @@ def main(argv: list[str] | None = None) -> int:
             "laws": laws,
             "precedents": precedents,
         }
+        if audit is not None:
+            body["factuality_audit"] = audit
         out_text = json.dumps(body, ensure_ascii=False, indent=2)
     else:
-        out_text = render_markdown(sections, subsections, laws, precedents)
+        out_text = render_markdown(sections, subsections, laws, precedents, audit=audit)
 
     if args.output:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)

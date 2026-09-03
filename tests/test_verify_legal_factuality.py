@@ -98,3 +98,24 @@ def test_specialized_courts_recognized():
     assert "2020헌바123" in res["cited_precedents"]
     assert "2022허4567" in res["cited_precedents"]
 
+
+def test_legal_factuality_guard_target_file_key(tmp_path):
+    import subprocess
+    guard_script = SCRIPT_DIR / "legal_factuality_guard.mjs"
+    bad_file = tmp_path / "소장_테스트.md"
+    bad_file.write_text("피고는 민법 제1500조에 따라 원고에게 지급하라.", encoding="utf-8")
+
+    # Pass TargetFile key as JSON payload
+    payload = json.dumps({"TargetFile": str(bad_file), "CodeContent": "..."})
+    proc = subprocess.run(
+        ["node", str(guard_script)],
+        input=payload,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    # Guard should catch the target file and fail-closed (exit code 1)
+    assert proc.returncode == 1
+    assert "민법" in proc.stderr or "LEGAL FACTUALITY GUARD" in proc.stderr
+
+

@@ -39,6 +39,14 @@ import re
 import sys
 from datetime import datetime
 
+try:
+    from verify_legal_factuality import verify_legal_text
+except ImportError:
+    try:
+        from scripts.verify_legal_factuality import verify_legal_text
+    except ImportError:
+        verify_legal_text = None
+
 DRAFT_TYPES = ("소장", "준비서면", "고소장", "내용증명")
 
 DISCLAIMER = (
@@ -190,7 +198,7 @@ RENDERERS = {
 }
 
 
-def generate(data: dict) -> str:
+def generate(data: dict, verify: bool = False, strict: bool = False) -> str:
     doc_type = str(data.get("type", "소장")).strip()
     if doc_type not in DRAFT_TYPES:
         raise ValueError(f"type은 {DRAFT_TYPES} 중 하나여야 합니다: {doc_type!r}")
@@ -204,13 +212,25 @@ def generate(data: dict) -> str:
     lines.append("---\n")
     lines.append(f"**작성(초안 생성)일자:** {datetime.now().strftime('%Y년 %m월 %d일')}")
     lines.append("**고지:** 본 초안은 AI 생성물입니다. 법률 용어·청구 원인 구성·증거 번호 체계는 변호사 검토가 필수입니다.")
-    return "\n".join(lines) + "\n"
+    md = "\n".join(lines) + "\n"
+
+    if verify and verify_legal_text is not None:
+        audit = verify_legal_text(md)
+        if audit["errors"]:
+            raise ValueError(f"법률 사실성 검증 실패: {'; '.join(audit['errors'])}")
+        if strict and audit["warnings"]:
+            raise ValueError(f"법률 경고 발생 (--strict): {'; '.join(audit['warnings'])}")
+
+    return md
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="전자소송 규격 법률 문서 초안 생성기 (소장/준비서면/고소장/내용증명)")
     p.add_argument("--input-json", "-i", required=True, help="초안 재료 JSON (type/case_info/claims/facts/evidence_list)")
     p.add_argument("--output", "-o", default="", help="출력 마크다운 경로 (미지정 시 stdout)")
+    p.add_argument("--verify", dest="verify", action="store_true", default=True, help="조문 및 판례 사실성 검증 수행 (기본 활성)")
+    p.add_argument("--no-verify", dest="verify", action="store_false", help="사실성 검증 건너뛰기")
+    p.add_argument("--strict", action="store_true", help="경고 발생 시에도 실패 처리")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input_json):
@@ -228,6 +248,23 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+
+    if args.verify and verify_legal_text is not None:
+        audit = verify_legal_text(md)
+        if audit["errors"]:
+            print(f"[FAIL] 법률 사실성 검증 실패 ({len(audit['errors'])}개 오류):", file=sys.stderr)
+            for err in audit["errors"]:
+                print(f"  - {err}", file=sys.stderr)
+            print("error: 허위 조문 또는 날조된 판례가 포함되어 초안 생성을 차단합니다.", file=sys.stderr)
+            return 1
+        if args.strict and audit["warnings"]:
+            print(f"[FAIL] 법률 경고 발생 (--strict 모드):", file=sys.stderr)
+            for w in audit["warnings"]:
+                print(f"  - {w}", file=sys.stderr)
+            return 1
+        if audit["warnings"]:
+            for w in audit["warnings"]:
+                print(f"[WARN] {w}", file=sys.stderr)
 
     if args.output:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)

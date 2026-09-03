@@ -87,3 +87,35 @@ def test_main_writes_file_and_exit_codes(tmp_path):
     bad.write_text("{oops", encoding="utf-8")
     assert gld.main(["--input-json", str(bad)]) == 2
     assert gld.main(["--input-json", "없음.json"]) == 2
+
+
+def test_factuality_verification_blocks_hallucinated_statute(tmp_path):
+    data = json.loads(json.dumps(BASE))
+    data["claims"].append("민법 제1500조에 기한 부당이득반환청구")
+    
+    # Library call with verify=True raises ValueError
+    with pytest.raises(ValueError) as exc:
+        gld.generate(data, verify=True)
+    assert "민법" in str(exc.value) and "허위 조문" in str(exc.value)
+
+    # CLI with default --verify exits 1
+    src = tmp_path / "hallucinated_draft.json"
+    src.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    out = tmp_path / "blocked.md"
+    assert gld.main(["--input-json", str(src), "--output", str(out)]) == 1
+    assert not out.exists()
+
+    # CLI with --no-verify passes through
+    assert gld.main(["--input-json", str(src), "--no-verify", "--output", str(out)]) == 0
+    assert out.exists()
+
+
+def test_factuality_verification_blocks_future_precedent(tmp_path):
+    data = json.loads(json.dumps(BASE))
+    data["facts"][0]["paragraphs"].append("대법원 2030다99999 판결의 법리에 따름.")
+
+    src = tmp_path / "future_draft.json"
+    src.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    out = tmp_path / "future_out.md"
+    assert gld.main(["--input-json", str(src), "--output", str(out)]) == 1
+    assert not out.exists()

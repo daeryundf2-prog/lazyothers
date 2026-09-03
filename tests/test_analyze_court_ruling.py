@@ -92,3 +92,26 @@ def test_empty_input_rejected(tmp_path):
     p.write_text("   \n", encoding="utf-8")
     assert acr.main([str(p)]) == 2
     assert acr.main(["없음.txt"]) == 2
+
+
+def test_verify_mode_renders_audit_section(ruling_file, tmp_path):
+    out = tmp_path / "분석_검증.md"
+    assert acr.main([str(ruling_file), "--verify", "-o", str(out)]) == 0
+    md = out.read_text(encoding="utf-8")
+    assert "## 인용 법령·판례 무결성 검증 (Factuality Audit)" in md
+    assert "검증 결과" in md
+
+    # JSON mode with --verify
+    out_json = tmp_path / "분석_검증.json"
+    assert acr.main([str(ruling_file), "--json", "--verify", "-o", str(out_json)]) == 0
+    data = json.loads(out_json.read_text(encoding="utf-8"))
+    assert "factuality_audit" in data
+    assert data["factuality_audit"]["verdict"] in ("PASS", "WARN")
+
+
+def test_verify_strict_mode_blocks_hallucinated_ruling(tmp_path):
+    bad_ruling = tmp_path / "bad_ruling.txt"
+    bad_ruling.write_text("주 문\n피고는 민법 제1500조에 따라 배상하라.", encoding="utf-8")
+    out = tmp_path / "blocked.md"
+    assert acr.main([str(bad_ruling), "--verify", "--strict", "-o", str(out)]) == 1
+    assert not out.exists()

@@ -12,6 +12,7 @@
   "license": "MIT",
   "scripts": {
     "setup": "node scripts/sync-mcp.mjs",
-    "sync": "node scripts/sync-mcp.mjs"
+    "sync": "node scripts/sync-mcp.mjs",
+    "test": "python -m pytest tests"
   }
 }
