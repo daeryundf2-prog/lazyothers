@@ -50,6 +50,8 @@ python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o
 4. **법원 명칭 날조 차단 (Section 5.1 #2)**: 폐지되거나 실존하지 않는 가짜 법원 명칭(`서울민사지방법원`, `한국연방법원`, `고등대법원` 등)을 즉시 차단합니다.
 5. **Kiwi 형태소 하이브리드 그라운딩 (Section 5.2)**: `kiwipiepy` 형태소 분석기를 통해 조사(은/는/이/가/을/를/의)를 분리하고 법률 고유명사 사전을 탑재하여 원본 증거와 초안 간의 형태소 정합성을 감사합니다 (`--morph-grounding`).
 6. **Vertex AI High-Fidelity 비파라메트릭 모드 (Section 4.2)**: 원본 증거(`--source`)와 `<evidence>` 인용 태그를 강제하며, 형태소 그라운딩 커버리지 70% 미달 시 생성을 차단합니다 (`--high-fidelity`).
+7. **한국사 사건 및 조약 날조 차단 (Section 5.1 #3)**: 실존하지 않는 역사적 사건 차수(`갑오개혁 4차`, `제2차 을사조약`, `3차 동학농민운동`, `강화도조약 2차` 등) 및 가짜 조약/사건 날조를 기계적으로 차단합니다.
+8. **불가능한 사법 절차 날조 차단 (Section 5.1 #4)**: 실정법/형사소송법/헌법상 성립할 수 없는 절차(`대검찰청의 약식명령 청구`, `경찰의 영장 직접 청구`, `경찰의 직접 기소`, `헌법재판소의 징역형 선고`, `민사소송에서의 징역형 선고` 등)를 원천 차단합니다.
 
 ```bash
 # 초안 생성 시 High-Fidelity 엄격 증거 및 사실성 검증 수행
@@ -58,11 +60,14 @@ python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json --
 # 작성된 마크다운 초안의 조문/판례 사실성 및 Kiwi 형태소 하이브리드 그라운딩 검사
 python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 소장_초안.md --source 증거_사실관계.txt --morph-grounding --high-fidelity --strict --json
 
+# 법률 사실성 종합 헬스체크 (Section 5.1 및 7-8 전수 검증 100점 감사)
+python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py --health-check --json
+
 # Kiwi 형태소 기반 증거-초안 렉시컬 그라운딩 오버랩 단독 감사
 python ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 증거_사실관계.txt --target 소장_초안.md --high-fidelity --json
 ```
 
-- 허위 조문(예: 민법 제1500조), 미래 판례, 가짜 법원명칭, 근거 없는 사실 날조 발견 시 exit 1로 생성이 차단됩니다.
+- 허위 조문(예: 민법 제1500조), 미래 판례, 가짜 법원명칭, 가짜 역사 사건, 불가능한 사법 절차 인용 시 exit 1로 생성이 차단됩니다.
 - 포스트툴유즈 훅(`legal_factuality_guard.mjs`) 역시 새로 쓰인 법률 문서에 대해 FAIL_CLOSED 원칙으로 위반을 차단합니다.
 
 ## HWPX 변환 (제출용 서식이 필요할 때)

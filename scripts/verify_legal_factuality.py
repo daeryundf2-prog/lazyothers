@@ -136,6 +136,117 @@ ABOLISHED_GOV_AGENCIES: dict[str, tuple[str, str]] = {
     "철도청": ("2005년 개편", "한국철도공사/국가철도공단"),
 }
 
+# Fabricated Korean historical events & treaties bounds (Section 5.1 #3)
+FABRICATED_HISTORICAL_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # 갑오개혁 (1차, 2차, 3차(을미개혁)만 존재 -> 4차 이상 날조)
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:갑오\s*개혁\s*(?:제\s*)?(?:[4-9]|\d{2,}|[사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차)|(?:(?:제\s*)?(?:[4-9]|\d{2,}|[사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차\s*갑오\s*개혁))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "갑오개혁은 제1차(1894), 제2차(1894~1895), 제3차(을미개혁, 1895)까지만 존재하며 4차 이상은 존재하지 않는 역사 날조입니다.",
+    ),
+    # 동학농민운동 / 동학농민혁명 (1차, 2차 봉기만 존재 -> 3차 이상 날조)
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:동학\s*농민\s*(?:운동|혁명)\s*(?:제\s*)?(?:[3-9]|\d{2,}|[삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차)|(?:(?:제\s*)?(?:[3-9]|\d{2,}|[삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차\s*동학\s*농민\s*(?:운동|혁명)))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "동학농민운동은 제1차 봉기(백산), 제2차 봉기(삼례)까지만 존재하며 3차 이상은 날조입니다.",
+    ),
+    # 임진왜란 (1차 임진왜란 1592, 2차 정유재란 1597 -> 3차 이상 날조)
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:임진\s*왜란\s*(?:제\s*)?(?:[3-9]|\d{2,}|[삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차)|(?:(?:제\s*)?(?:[3-9]|\d{2,}|[삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차\s*임진\s*왜란))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "임진왜란은 임진왜란(1592)과 정유재란(1597) 2차례 교전이며 3차 이상은 날조입니다.",
+    ),
+    # 단일 체결 조약/늑약의 차수 날조 (을사조약, 을사늑약, 정미7조약, 정미칠조약, 한일신협약, 한일의정서, 강화도조약, 조일수호조규 등 2차 이상 불가)
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:(?:을사\s*조약|을사\s*늑약|정미\s*7\s*조약|정미\s*칠\s*조약|한일\s*신\s*협약|한일\s*의정서|강화도\s*조약|조일\s*수호\s*조규)\s*(?:제\s*)?(?:[2-9]|\d{2,}|[이삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차)|(?:(?:제\s*)?(?:[2-9]|\d{2,}|[이삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차\s*(?:을사\s*조약|을사\s*늑약|정미\s*7\s*조약|정미\s*칠\s*조약|한일\s*신\s*협약|한일\s*의정서|강화도\s*조약|조일\s*수호\s*조규)))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "해당 조약/의정서는 1회 단일 체결 사건으로 제2차 이상의 조약은 존재하지 않는 역사 날조입니다.",
+    ),
+    # 단일 역사적 사건/운동 차수 날조 (3·1운동, 삼일운동, 신미양요, 병인양요, 갑신정변, 임오군란 등 2차 이상 불가)
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:(?:3\s*[·.]\s*1\s*운동|삼일\s*운동|신미\s*양요|병인\s*양요|갑신\s*정변|임오\s*군란|무오\s*사화|갑자\s*사화|기묘\s*사화|을사\s*사화)\s*(?:제\s*)?(?:[2-9]|\d{2,}|[이삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차)|(?:(?:제\s*)?(?:[2-9]|\d{2,}|[이삼사오육칠팔구]|십[일이삼사오육칠팔구]?|[이삼사오육칠팔구]십[일이삼사오육칠팔구]?)\s*차\s*(?:3\s*[·.]\s*1\s*운동|삼일\s*운동|신미\s*양요|병인\s*양요|갑신\s*정변|임오\s*군란|무오\s*사화|갑자\s*사화|기묘\s*사화|을사\s*사화)))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "해당 역사적 사건은 단일 1회성 사건으로 제2차 이상의 사건은 존재하지 않는 역사 날조입니다.",
+    ),
+]
+
+# Impossible judicial procedures under Korean Law (Section 5.1 #4)
+IMPOSSIBLE_JUDICIAL_PROCEDURE_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:대검찰청|대검|고등검찰청|고검)(?:의|에서|이|은|는)?\s*(?:[가-힣\s]{0,20}?)(?:약식명령\s*(?:을\s*)?청구|약식기소|약식명령))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "약식명령 청구권자는 1심 관할 지방검찰청(또는 지청) 검사이며, 상급 검찰청(대검찰청/고등검찰청)은 약식명령을 청구할 수 없습니다 (형사소송법 제448조 위반).",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:대법원|고등법원)(?:에|에의|을\s*상대로)?\s*(?:[가-힣\s]{0,20}?)(?:약식명령\s*(?:을\s*)?청구|약식명령\s*신청|약식명령))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "약식명령은 지방법원 단독판사 관할이며 상급법원(대법원/고등법원)에 청구할 수 없습니다 (형사소송법 제448조 위반).",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:경찰(?:청|관|서)?|사법경찰관)(?:이|의|은|는|에서)?\s*(?:[가-힣\s]{0,20}?)(?:법원에\s*)?(?:직접\s*)?(?:구속영장|체포영장|압수수색영장|영장)(?:을|를)?\s*(?:직접\s*)?청구(?:하여|하였다|했다|함|한다)?)"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "영장 청구권은 검사에게만 전속되어 있으며, 사법경찰관은 검사에게 신청만 가능할 뿐 법원에 영장을 직접 청구할 수 없습니다 (헌법 제12조 제3항, 형사소송법 제200조의2, 제201조 위반).",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:경찰(?:청|관|서)?|사법경찰관)(?:이|의|은|는)?\s*(?:[가-힣\s]{0,20}?)(?:법원에\s*)?(?:직접\s*)?(?:공소제기|공소\s*제기|기소(?:\s*청구|\s*권|\s*결정|\s*강행|\s*(?:를\s*)?결정|하여|하였다|했다|함|한다)?)(?!(?:의견|유예|중지|송치)))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "국가소추주의 및 기소독점주의에 따라 공소제기(기소)는 검사만 가능하며, 경찰은 송치/불송치 결정만 가능하고 직접 기소할 수 없습니다 (형사소송법 제246조 위반).",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:대법원|대검찰청|대검)(?:의|에서|이)?\s*(?:[가-힣\s]{0,20}?)(?:구속영장|체포영장)(?:을|를)?\s*(?:청구|발부)(?:하여|하였다|했다|함|한다)?)"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "대법원은 상고심 법률심 법원으로 수사단계 구속영장을 발부하지 않으며 대검찰청은 영장청구 관할이 아닙니다.",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>헌법재판소(?:의|에서|이|은|는)?\s*(?:[가-힣\s\d]{0,25}?)(?:징역|금고|벌금|형벌|유죄|무죄)(?:[가-힣\s\d]{0,15}?)(?:선고|판결)(?:하여|하였다|했다|함|한다)?)"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "헌법재판소는 위헌법률심판, 탄핵, 헌법소원 등을 관할하며, 일반 형사사건의 징역형이나 유죄 판결을 선고할 수 없습니다 (헌법 제111조 위반).",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>민사소송(?:에서|으로)?\s*(?:[가-힣\s\d]{0,25}?)(?:징역|금고|벌금)(?:[가-힣\s\d]{0,15}?)(?:선고|부과)(?:하여|하였다|했다|함|한다)?)"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "민사소송은 사법상 권리분쟁 해결 절차로, 형벌인 징역형, 금고, 벌금형을 선고할 수 없습니다.",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>형사(?:소송|재판)(?:의|에서)?\s*(?:원고|원고측))"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "형사소송의 당사자는 검사와 피고인이며, '원고'는 민사/행정소송의 당사자 명칭으로 형사소송에는 존재하지 않습니다.",
+    ),
+    (
+        re.compile(
+            r"(?<![가-힣])(?P<target>(?:지방법원|고등법원|대법원)(?:에|에의)?\s*(?:[가-힣\s]{0,10}?)헌법소원(?:\s*심판)?\s*청구(?:하여|하였다|했다|함|한다)?)"
+            + KOREAN_PARTICLE_SUFFIX
+        ),
+        "헌법소원 심판 청구는 헌법재판소의 전속 관할이며 일반 법원에 청구할 수 없습니다 (헌법재판소법 제68조 위반).",
+    ),
+]
+
 EVIDENCE_TAG_RE = re.compile(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", re.DOTALL | re.IGNORECASE)
 
 
@@ -231,7 +342,23 @@ def verify_legal_text(
                     f"[정부기관 명칭 오류/날조] 폐지된 구 정부 부처명 인용: '{agency}' ({abolish_info}, 현행 '{successor}' 명칭 사용 필수) (Section 5.1 위반)"
                 )
 
-    # 3-4. Optional Claim Ledger integration (Section 6)
+    # 3-4. Fabricated Korean historical events and treaties check (Section 5.1 #3)
+    for pat, desc in FABRICATED_HISTORICAL_PATTERNS:
+        for m in pat.finditer(text):
+            matched_text = m.group("target") if "target" in m.groupdict() else m.group(0)
+            errors.append(
+                f"[한국사 사건/조약 날조] 실존하지 않는 역사적 사건/차수 날조: '{matched_text}' - {desc} (Section 5.1 #3 위반)"
+            )
+
+    # 3-5. Impossible judicial procedures check (Section 5.1 #4)
+    for pat, desc in IMPOSSIBLE_JUDICIAL_PROCEDURE_PATTERNS:
+        for m in pat.finditer(text):
+            matched_text = m.group("target") if "target" in m.groupdict() else m.group(0)
+            errors.append(
+                f"[불가능한 사법절차 날조] 실정법상 성립할 수 없는 사법 절차/권한 인용: '{matched_text}' - {desc} (Section 5.1 #4 위반)"
+            )
+
+    # 3-6. Optional Claim Ledger integration (Section 6)
     if claim_ledger_path:
         try:
             from scripts.verify_claim_ledger import verify_claim_ledger_file
@@ -405,11 +532,105 @@ def verify_legal_file(
     return result
 
 
+def run_legal_health_check() -> dict:
+    """Run comprehensive Section 5.1 & Section 6 legal factuality health check suite.
+    Scores 10 categories (10 points each = 100 points total).
+    Returns health check report with factualityScore and test results.
+    """
+    tests = [
+        # 1. Statutory bounds: Valid statutes must pass
+        (
+            "statutory_bounds_valid",
+            "민법 제1118조 및 형법 제372조에 따라 청구합니다.",
+            lambda r: len(r["errors"]) == 0 and len(r["cited_statutes"]) >= 2,
+        ),
+        # 2. Statutory bounds: Out-of-bound statute article must be blocked
+        (
+            "statutory_bounds_invalid",
+            "민법 제1500조에 의하여 손해배상을 청구합니다.",
+            lambda r: any("허위 조문 날조" in e and "1500" in e for e in r["errors"]),
+        ),
+        # 3. Precedents: Valid precedent format & year must pass, future must fail
+        (
+            "precedents_sanity",
+            "대법원 2020다12345 판결과 대법원 2099다99999 판결을 참조합니다.",
+            lambda r: any("미래 연도 판결 인용" in e for e in r["errors"]),
+        ),
+        # 4. Court names: Fabricated / abolished courts must be blocked
+        (
+            "court_names_sanity",
+            "서울민사지방법원 및 한국연방법원에 소장을 제출합니다.",
+            lambda r: any("법원 명칭 날조" in e for e in r["errors"]),
+        ),
+        # 5. Agency names: Fabricated / abolished agencies must be blocked
+        (
+            "agency_names_sanity",
+            "사이버수사처와 정보통신부의 조사 결과에 근거합니다.",
+            lambda r: any("정부기관 명칭" in e for e in r["errors"]),
+        ),
+        # 6. Historical events: Valid historical events must pass
+        (
+            "historical_events_valid",
+            "제1차 갑오개혁 및 동학농민운동 1차 봉기, 을사조약 체결 내역을 고찰한다.",
+            lambda r: len(r["errors"]) == 0,
+        ),
+        # 7. Historical events: Fabricated historical rounds must be blocked (Section 5.1 #3)
+        (
+            "historical_events_invalid",
+            "갑오개혁 4차 개혁안 및 제2차 을사조약, 3차 동학농민운동에 따라 시행되었다.",
+            lambda r: any("한국사 사건/조약 날조" in e for e in r["errors"]),
+        ),
+        # 8. Judicial procedures: Valid legal procedures must pass
+        (
+            "judicial_procedures_valid",
+            "서울중앙지방검찰청 검사의 약식명령 청구 및 사법경찰관의 구속영장 신청에 의한다.",
+            lambda r: len(r["errors"]) == 0,
+        ),
+        # 9. Judicial procedures: Impossible procedures must be blocked (Section 5.1 #4)
+        (
+            "judicial_procedures_invalid",
+            "대검찰청의 약식명령 청구 및 경찰의 영장 직접 청구, 헌법재판소의 징역형 선고를 요구한다.",
+            lambda r: any("불가능한 사법절차 날조" in e for e in r["errors"]),
+        ),
+        # 10. Evidence-First & Abstention protocol
+        (
+            "evidence_abstention_protocol",
+            "<evidence>원문 증거 100만원 대여 사실</evidence> [INSUFFICIENT_DATA] 추가 증거 필요.",
+            lambda r: len(r["errors"]) == 0,
+        ),
+    ]
+
+    passed_tests = 0
+    total_tests = len(tests)
+    test_results = {}
+
+    for name, text, checker in tests:
+        res = verify_legal_text(text)
+        ok = checker(res)
+        if ok:
+            passed_tests += 1
+            test_results[name] = {"status": "PASS", "errors": res["errors"], "warnings": res["warnings"]}
+        else:
+            test_results[name] = {"status": "FAIL", "errors": res["errors"], "warnings": res["warnings"]}
+
+    score = int((passed_tests / total_tests) * 100)
+    return {
+        "suite": "Korean Legal Factuality Health Check Suite (Section 5.1 & 7-8)",
+        "score": score,
+        "max_score": 100,
+        "passed": passed_tests,
+        "total": total_tests,
+        "status": "PASS" if score == 100 else "FAIL",
+        "details": test_results,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Korean Legal and Precedent Hallucination Verifier"
     )
-    parser.add_argument("file", help="Path to legal document (.md, .txt) to verify")
+    parser.add_argument("file", nargs="?", default=None, help="Path to legal document (.md, .txt) to verify")
+    parser.add_argument("--health-check", action="store_true", help="Run comprehensive Section 5.1 & Section 6 legal factuality health check suite")
     parser.add_argument("--source", help="Optional path to source evidence/facts for grounding check")
     parser.add_argument("--claim-ledger", help="Optional path to claim-ledger.md for Section 6 verification")
     parser.add_argument("--allow-historical", action="store_true", help="Allow historical abolished ministry citations (warning instead of fatal error)")
@@ -418,6 +639,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="Output JSON results")
     parser.add_argument("--strict", action="store_true", help="Fail on warnings as well")
     args = parser.parse_args(argv)
+
+    if args.health_check:
+        health_report = run_legal_health_check()
+        if args.json:
+            print(json.dumps(health_report, ensure_ascii=False, indent=2))
+        else:
+            print(f"[{health_report['status']}] {health_report['suite']}: {health_report['score']}/{health_report['max_score']} points ({health_report['passed']}/{health_report['total']} passed)")
+            for name, d in health_report["details"].items():
+                print(f"  - {name}: {d['status']}")
+        return 0 if health_report["status"] == "PASS" else 1
+
+    if not args.file:
+        parser.print_help()
+        return 2
 
     result = verify_legal_file(
         args.file,

@@ -419,6 +419,103 @@ def test_generate_legal_draft_with_claim_ledger(tmp_path):
     assert "[Claim 1]" in out_file.read_text(encoding="utf-8")
 
 
+def test_fabricated_historical_events_blocked():
+    # 4차 갑오개혁, 3차 동학농민운동, 제2차 을사조약, 제3차 임진왜란 등 날조 차단
+    res1 = vlf.verify_legal_text("갑오개혁 4차 개혁안을 바탕으로 제도를 개편하였다.")
+    assert res1["verdict"] == "FAIL"
+    assert any("갑오개혁 4차" in e and "한국사 사건/조약 날조" in e for e in res1["errors"])
+
+    res2 = vlf.verify_legal_text("제4차 갑오개혁 당시 수립된 법률이다.")
+    assert res2["verdict"] == "FAIL"
+    assert any("한국사 사건/조약 날조" in e for e in res2["errors"])
+
+    res3 = vlf.verify_legal_text("제2차 을사조약 체결에 따라 외교권이 제한되었다.")
+    assert res3["verdict"] == "FAIL"
+    assert any("제2차 을사조약" in e and "한국사 사건/조약 날조" in e for e in res3["errors"])
+
+    res4 = vlf.verify_legal_text("3차 동학농민운동 봉기 이후에 체결되었다.")
+    assert res4["verdict"] == "FAIL"
+    assert any("3차 동학농민운동" in e and "한국사 사건/조약 날조" in e for e in res4["errors"])
+
+    res5 = vlf.verify_legal_text("강화도조약 2차 및 2차 삼일운동 관련 사료이다.")
+    assert res5["verdict"] == "FAIL"
+    assert any("강화도조약 2차" in e or "2차 삼일운동" in e for e in res5["errors"])
+
+
+def test_valid_historical_events_pass():
+    # 1차~3차 갑오개혁, 1차~2차 동학농민운동, 을사조약 체결 등 정상 역사 서술 통과
+    valid_text = "제1차 갑오개혁, 2차 갑오개혁, 3차 갑오개혁(을미개혁) 및 동학농민운동 1차 봉기, 을사조약 체결 역사를 검토한다."
+    res = vlf.verify_legal_text(valid_text)
+    assert res["verdict"] == "PASS"
+    assert len(res["errors"]) == 0
+
+
+def test_impossible_judicial_procedures_blocked():
+    # 대검찰청의 약식명령 청구, 경찰의 영장 직접 청구, 헌법재판소의 징역형 선고 등 실정법상 불가 절차 차단
+    res1 = vlf.verify_legal_text("대검찰청의 약식명령 청구에 따라 벌금형이 고지되었다.")
+    assert res1["verdict"] == "FAIL"
+    assert any("대검찰청의 약식명령 청구" in e and "불가능한 사법절차 날조" in e for e in res1["errors"])
+
+    res2 = vlf.verify_legal_text("고등검찰청의 약식기소 처분을 확인하였다.")
+    assert res2["verdict"] == "FAIL"
+    assert any("고등검찰청의 약식기소" in e for e in res2["errors"])
+
+    res3 = vlf.verify_legal_text("사법경찰관이 법원에 구속영장을 직접 청구하였다.")
+    assert res3["verdict"] == "FAIL"
+    assert any("구속영장을 직접 청구" in e or "구속영장" in e for e in res3["errors"])
+
+    res4 = vlf.verify_legal_text("경찰은 피의자를 법원에 직접 기소하였다.")
+    assert res4["verdict"] == "FAIL"
+    assert any("경찰" in e and "기소" in e for e in res4["errors"])
+
+    res5 = vlf.verify_legal_text("헌법재판소는 피고인에게 징역 2년을 선고하였다.")
+    assert res5["verdict"] == "FAIL"
+    assert any("헌법재판소" in e and "징역" in e for e in res5["errors"])
+
+    res6 = vlf.verify_legal_text("민사소송에서 피고에게 징역 1년을 선고하였다.")
+    assert res6["verdict"] == "FAIL"
+    assert any("민사소송" in e and "징역" in e for e in res6["errors"])
+
+    res7 = vlf.verify_legal_text("형사소송의 원고는 합의금을 요구하였다.")
+    assert res7["verdict"] == "FAIL"
+    assert any("형사소송의 원고" in e for e in res7["errors"])
+
+
+def test_valid_judicial_procedures_pass():
+    # 관할 지검 검사의 약식명령 청구, 경찰의 영장 신청, 민사소송의 원고 등 정상 절차 통과
+    valid_proc = (
+        "서울중앙지방검찰청 검사는 피의자에 대하여 벌금 300만원의 약식명령을 청구하였다. "
+        "사법경찰관은 검사에게 구속영장을 신청하였고, 경찰은 기소의견으로 사건을 송치하였다. "
+        "민사소송의 원고는 손해배상을 청구하였다."
+    )
+    res = vlf.verify_legal_text(valid_proc)
+    assert res["verdict"] == "PASS"
+    assert len(res["errors"]) == 0
+
+
+def test_run_legal_health_check_returns_100_score():
+    health = vlf.run_legal_health_check()
+    assert health["status"] == "PASS"
+    assert health["score"] == 100
+    assert health["passed"] == health["total"]
+    assert len(health["details"]) == 10
+
+
+def test_cli_health_check():
+    import subprocess
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "verify_legal_factuality.py"), "--health-check", "--json"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    assert data["status"] == "PASS"
+    assert data["score"] == 100
+
+
+
 
 
 
