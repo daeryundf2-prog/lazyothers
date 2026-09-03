@@ -41,22 +41,29 @@ STATUTE_BOUNDS = {
 VALID_CASE_CODES = {
     # 민사
     "가단", "가합", "가소", "나", "다", "라", "마", "그", "바", "자", "차",
+    # 보전처분 / 민사신청
+    "카", "카단", "카합", "카기", "카담", "카조", "카열", "카경",
     # 형사
     "고단", "고합", "고약", "노", "도", "로", "모", "오", "보", "코",
-    # 가사
-    "드", "르", "므", "스", "으",
-    # 행정/특허
+    # 가사소송 및 가사비송
+    "드", "드단", "드합", "르", "르단", "르합", "므", "스", "으",
+    "느", "느단", "느합", "즈", "즈단", "즈합",
+    # 도산 / 회생 / 파산
+    "회단", "회합", "회개", "개회", "개단", "개합", "하단", "하합", "하면", "개확",
+    # 행정 / 특허
     "구", "구합", "구단", "누", "두", "루", "무", "허",
     # 헌법재판소
     "헌가", "헌나", "헌다", "헌라", "헌마", "헌바", "헌사", "헌아",
+    # 소년보호
+    "푸", "버",
+    # 재심
+    "재가단", "재가합", "재다", "재나", "재도", "재노", "재고단", "재고합",
 }
 
 PRECEDENT_RE = re.compile(
-    r"\b(?P<court>대법원|서울고등법원|서울중앙지방법원|[가-힣]{2,6}지방법원|[가-힣]{2,6}고등법원)?\s*"
+    r"\b(?P<court>대법원|헌법재판소|특허법원|[가-힣]{2,6}가정법원|[가-힣]{2,6}행정법원|[가-힣]{2,6}고등법원|서울중앙지방법원|[가-힣]{2,6}지방법원)?\s*"
     r"(?P<year>\d{4})\s*(?P<code>[가-힣]{1,4})\s*(?P<num>\d+)\b"
 )
-
-STATUTE_ARTICLE_RE = re.compile(r"([가-힣\s]+?)\s*제\s*(\d+)\s*조(?:의\s*(\d+))?")
 
 
 def verify_legal_text(text: str, current_year: int = 2026) -> dict:
@@ -67,14 +74,14 @@ def verify_legal_text(text: str, current_year: int = 2026) -> dict:
 
     # 1. Statutory bounds check
     for statute_name, max_art in STATUTE_BOUNDS.items():
-        pattern = re.compile(rf"{re.escape(statute_name)}\s*제\s*(\d+)\s*조")
+        pattern = re.compile(rf"{re.escape(statute_name)}\s*제\s*(\d+)\s*조(?:\s*의\s*(\d+))?")
         for match in pattern.finditer(text):
             art_num = int(match.group(1))
             full_ref = match.group(0)
             cited_statutes.append(full_ref)
             if art_num < 1 or art_num > max_art:
                 errors.append(
-                    f"[{statute_name}] 허위 조문 날조: 제{art_num}조 — "
+                    f"[{statute_name}] 허위 조문 날조: {full_ref} — "
                     f"현행 {statute_name}은 제1조~제{max_art}조까지만 존재합니다."
                 )
 

@@ -61,3 +61,40 @@ def test_cli_execution_with_temp_file(tmp_path):
     res = vlf.verify_legal_file(str(f))
     assert res["verdict"] == "PASS"
     assert "2021다274214" in res["cited_precedents"]
+
+
+def test_provisional_remedy_and_family_codes_pass():
+    text = (
+        "채권자는 서울중앙지방법원 2024카단12345 가압류 결정 및 "
+        "서울가정법원 2023느단67890 상속한정승인 심판, 수원회생법원 2023개회55555 결정을 원용합니다."
+    )
+    res = vlf.verify_legal_text(text)
+    assert res["verdict"] == "PASS"
+    assert len(res["warnings"]) == 0
+    assert "2024카단12345" in res["cited_precedents"]
+    assert "2023느단67890" in res["cited_precedents"]
+    assert "2023개회55555" in res["cited_precedents"]
+
+
+def test_statute_branch_articles_preserved_and_bounded():
+    valid_text = "개인정보보호법 제76조의2 과징금 및 정보통신망법 제44조의7 불법정보 유통금지."
+    res_valid = vlf.verify_legal_text(valid_text)
+    assert res_valid["verdict"] == "PASS"
+    assert "개인정보보호법 제76조의2" in res_valid["cited_statutes"]
+    assert "정보통신망법 제44조의7" in res_valid["cited_statutes"]
+
+    invalid_text = "개인정보보호법 제99조의2 위반."
+    res_invalid = vlf.verify_legal_text(invalid_text)
+    assert res_invalid["verdict"] == "FAIL"
+    assert any("개인정보보호법" in e and "제99조의2" in e for e in res_invalid["errors"])
+
+
+def test_specialized_courts_recognized():
+    text = "헌법재판소 2020헌바123 결정 및 특허법원 2022허4567 판결."
+    res = vlf.verify_legal_text(text)
+    assert res["verdict"] == "PASS"
+    assert len(res["errors"]) == 0
+    assert len(res["warnings"]) == 0
+    assert "2020헌바123" in res["cited_precedents"]
+    assert "2022허4567" in res["cited_precedents"]
+
