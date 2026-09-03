@@ -441,10 +441,26 @@ def test_fabricated_historical_events_blocked():
     assert res5["verdict"] == "FAIL"
     assert any("강화도조약 2차" in e or "2차 삼일운동" in e for e in res5["errors"])
 
+    # Hanja numerals, Sino-Korean prefix 第, and single-occurrence treaties/reforms (Section 5.1 #3)
+    res6 = vlf.verify_legal_text("第4次 甲午改革 및 제四차 갑오개혁 사료를 분석한다.")
+    assert res6["verdict"] == "FAIL"
+    assert any("한국사 사건/조약 날조" in e for e in res6["errors"])
+
+    res7 = vlf.verify_legal_text("제2차 을미개혁 및 제2차 한일병합조약 관련 기록이다.")
+    assert res7["verdict"] == "FAIL"
+    assert any("한국사 사건/조약 날조" in e for e in res7["errors"])
+
+    res8 = vlf.verify_legal_text("제2차 조미수호통상조약 및 제2차 4·19 혁명 기념 문서이다.")
+    assert res8["verdict"] == "FAIL"
+    assert any("한국사 사건/조약 날조" in e for e in res8["errors"])
+
 
 def test_valid_historical_events_pass():
     # 1차~3차 갑오개혁, 1차~2차 동학농민운동, 을사조약 체결 등 정상 역사 서술 통과
-    valid_text = "제1차 갑오개혁, 2차 갑오개혁, 3차 갑오개혁(을미개혁) 및 동학농민운동 1차 봉기, 을사조약 체결 역사를 검토한다."
+    valid_text = (
+        "제1차 갑오개혁, 2차 갑오개혁, 3차 갑오개혁(을미개혁) 및 동학농민운동 1차 봉기, "
+        "을사조약 체결, 조미수호통상조약 및 4·19 혁명 역사를 검토한다."
+    )
     res = vlf.verify_legal_text(valid_text)
     assert res["verdict"] == "PASS"
     assert len(res["errors"]) == 0
@@ -480,17 +496,51 @@ def test_impossible_judicial_procedures_blocked():
     assert res7["verdict"] == "FAIL"
     assert any("형사소송의 원고" in e for e in res7["errors"])
 
+    # Long compound Korean sentences with subordinate clauses (> 25 characters)
+    res8 = vlf.verify_legal_text("대검찰청 특별수사본부는 이번 사건과 관련하여 피의자들에 대해 약식명령을 청구하였다.")
+    assert res8["verdict"] == "FAIL"
+    assert any("불가능한 사법절차 날조" in e for e in res8["errors"])
+
+    res9 = vlf.verify_legal_text("경찰은 광범위한 압수수색 및 디지털 포렌식 분석을 완료한 후 관할 법원에 직접 영장을 청구하였다.")
+    assert res9["verdict"] == "FAIL"
+    assert any("불가능한 사법절차 날조" in e for e in res9["errors"])
+
+    res10 = vlf.verify_legal_text("헌법재판소는 장기간의 심리를 거쳐 마침내 피고인에게 중형인 징역 2년을 선고하였다.")
+    assert res10["verdict"] == "FAIL"
+    assert any("불가능한 사법절차 날조" in e for e in res10["errors"])
+
 
 def test_valid_judicial_procedures_pass():
-    # 관할 지검 검사의 약식명령 청구, 경찰의 영장 신청, 민사소송의 원고 등 정상 절차 통과
+    # 관할 지검 검사의 약식명령 청구, 경찰의 영장 신청, 대검찰청의 합법적 지휘, 민사소송의 원고 등 정상 절차 통과
     valid_proc = (
         "서울중앙지방검찰청 검사는 피의자에 대하여 벌금 300만원의 약식명령을 청구하였다. "
         "사법경찰관은 검사에게 구속영장을 신청하였고, 경찰은 기소의견으로 사건을 송치하였다. "
+        "대검찰청은 관할 지방검찰청에 약식명령 청구를 검토하도록 지시하였다. "
         "민사소송의 원고는 손해배상을 청구하였다."
     )
     res = vlf.verify_legal_text(valid_proc)
     assert res["verdict"] == "PASS"
     assert len(res["errors"]) == 0
+
+
+def test_academic_citation_hallucinations_blocked():
+    # Section 5.1 #3: Fabricated academic journals and future publication years
+    res1 = vlf.verify_legal_text("대한인공지능법학회지 제10권에 게재된 논문을 참조한다.")
+    assert res1["verdict"] == "FAIL"
+    assert any("학술논문/학술지 날조" in e and "대한인공지능법학회지" in e for e in res1["errors"])
+
+    res2 = vlf.verify_legal_text("한국사이버포렌식학회논문집 수록 연구 결과를 바탕으로 한다.")
+    assert res2["verdict"] == "FAIL"
+    assert any("학술논문/학술지 날조" in e and "한국사이버포렌식학회논문집" in e for e in res2["errors"])
+
+    res3 = vlf.verify_legal_text("홍길동 교수의 2099년 학술지 논문에 따르면 인공지능 책임이 인정된다.")
+    assert res3["verdict"] == "FAIL"
+    assert any("미래 연도 학술 논문" in e for e in res3["errors"])
+
+    # Valid academic citations from past/current years must pass
+    res_valid = vlf.verify_legal_text("「형사법연구」 제32권(2020년)에 게재된 학술 논문을 참조한다.")
+    assert res_valid["verdict"] == "PASS"
+    assert len(res_valid["errors"]) == 0
 
 
 def test_run_legal_health_check_returns_100_score():
