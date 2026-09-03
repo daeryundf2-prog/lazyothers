@@ -112,8 +112,10 @@ def extract_content_morphemes(text: str, min_len: int = 2) -> list[str]:
             tokens = kiwi.tokenize(text)
             results = []
             for t in tokens:
-                if t.tag in CONTENT_TAGS and len(t.form) >= min_len:
-                    results.append(t.form)
+                clean_form = t.form.rstrip(".,;:-~`!@#$%^&*()[]{}")
+                if clean_form and len(clean_form) >= min_len and not re.match(r"^[0-9]+[.)]?$", t.form):
+                    if t.tag in CONTENT_TAGS:
+                        results.append(clean_form)
             return results
         except Exception:
             pass
@@ -123,9 +125,12 @@ def extract_content_morphemes(text: str, min_len: int = 2) -> list[str]:
     words = re.findall(r"[가-힣a-zA-Z0-9]+", text)
     fallback_tokens = []
     for w in words:
+        if re.match(r"^[0-9]+[.)]?$", w):
+            continue
         stripped = re.sub(particles, "", w)
-        if len(stripped) >= min_len:
-            fallback_tokens.append(stripped)
+        clean_w = stripped.rstrip(".,;:-~`!@#$%^&*()[]{}")
+        if len(clean_w) >= min_len:
+            fallback_tokens.append(clean_w)
     return fallback_tokens
 
 
@@ -179,6 +184,7 @@ LEGAL_PROCEDURAL_TERMS = {
     "결론", "이유", "주문", "판결", "기각", "인용", "지급", "금원", "해당", "관할", "고지", "작성",
     "작성일자", "일자", "생성물", "변호사", "검토", "필수", "안내", "대리인", "소송대리인", "기재",
     "관계", "성립", "사실", "확인", "인정", "존재", "부존재", "경위", "내용", "취득", "부담", "발생",
+    "서명", "날인", "표시", "증호",
 }
 
 

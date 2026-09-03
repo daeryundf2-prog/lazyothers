@@ -178,8 +178,14 @@ def test_generate_legal_draft_high_fidelity(tmp_path):
     facts_file.write_text("2024년 1월 16일 금 10,000,000원을 입금하였다. 원고는 피고에게 대여하였습니다.", encoding="utf-8")
 
     data = json.loads(json.dumps(BASE))
-    data["facts"][0]["paragraphs"] = [
-        "<evidence>2024년 1월 16일 금 10,000,000원을 입금하였다.</evidence> 원고는 피고에게 대여하였습니다."
+    data["facts"] = [
+        {
+            "heading": "1. 대여 관계의 성립",
+            "paragraphs": [
+                "<evidence>2024년 1월 16일 금 10,000,000원을 입금하였다.</evidence> 원고는 피고에게 대여하였습니다."
+            ],
+            "evidence": ["갑 제1호증"],
+        }
     ]
     src = tmp_path / "draft.json"
     src.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")

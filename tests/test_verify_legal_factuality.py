@@ -260,6 +260,38 @@ def test_cli_morph_grounding_and_high_fidelity(tmp_path):
     assert len(data["errors"]) == 0
 
 
+def test_high_fidelity_with_multi_level_and_bracketed_headings():
+    source = "피고는 2024년 1월 1일 원고로부터 1000만원을 빌렸으나 변제하지 않았다."
+
+    # 1. H3 format with numbering (### 1. 청구원인)
+    draft_h3 = (
+        "# 소 장\n"
+        "원 고: 홍길동\n피 고: 김철수\n\n"
+        "### 1. 청구원인\n"
+        "피고는 2024년 1월 1일 원고로부터 1000만원을 빌렸으나 이를 변제하지 아니하였습니다.\n\n"
+        "### 2. 입증방법\n"
+        "<evidence>피고는 2024년 1월 1일 원고로부터 1000만원을 빌렸으나 변제하지 않았다.</evidence>\n"
+        "본 문서는 변호사 검토를 거쳐야 합니다.\n"
+    )
+    res_h3 = vlf.verify_legal_text(draft_h3, source_text=source, high_fidelity=True)
+    assert res_h3["verdict"] == "PASS"
+    assert len(res_h3["errors"]) == 0
+
+    # 2. Bracketed format (【청구원인】)
+    draft_bracket = (
+        "【당사자의 표시】\n원고 홍길동, 피고 김철수\n\n"
+        "【청구원인】\n"
+        "피고는 2024년 1월 1일 원고로부터 1000만원을 빌렸으나 변제하지 않았습니다.\n\n"
+        "【입증방법】\n"
+        "<evidence>피고는 2024년 1월 1일 원고로부터 1000만원을 빌렸으나 변제하지 않았다.</evidence>\n"
+        "본 문서는 AI 생성물이며 변호사 확인이 필요합니다.\n"
+    )
+    res_bracket = vlf.verify_legal_text(draft_bracket, source_text=source, high_fidelity=True)
+    assert res_bracket["verdict"] == "PASS"
+    assert len(res_bracket["errors"]) == 0
+
+
+
 
 
 

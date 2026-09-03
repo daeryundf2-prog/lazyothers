@@ -188,7 +188,7 @@ def verify_legal_text(
             errors.append("[High-Fidelity Grounding 위반] 사실관계 주장을 뒷받침하는 <evidence> 원문 인용 태그가 없습니다.")
 
     # 6. Morphological grounding check if source text is provided (Section 5.2)
-    if source_text and (morph_grounding or high_fidelity or True):
+    if source_text and (morph_grounding or high_fidelity):
         try:
             from scripts.korean_morph_grounding import calculate_grounding_overlap
         except ImportError:
@@ -200,7 +200,10 @@ def verify_legal_text(
         if calculate_grounding_overlap is not None:
             # If target text has dedicated factual sections, isolate them to avoid boilerplate dilution
             fact_section_match = re.search(
-                r"##\s*(?:청구원인|주장 및 항변|범죄사실|사실관계|통고 내용)\b(.*?)(?=\n##|\Z)",
+                r"(?:^|\n)\s*(?:#{1,4}\s*|\d+[\.\)]\s*|제\s*\d+\s*조?\s*|\b|【|\[)?\s*(?:\d+[\.\)]\s*)?"
+                r"(?:청구원인|주장 및 항변|범죄사실|사실관계|사실\s*관계|통고 내용|통고\s*내용|신청이유|주장의 요지)\b[^\n]*\n?"
+                r"(.*?)"
+                r"(?=\n#{1,2}\s|\n\s*(?:#{1,4}\s*|\d+[\.\)]\s*|제\s*\d+\s*조?\s*|【|\[)?\s*(?:\d+[\.\)]\s*)?(?:법적|법률|입증|증거|결론|첨부|신청|관할|판단|이유|고소|주문)|\Z)",
                 text,
                 re.DOTALL,
             )
