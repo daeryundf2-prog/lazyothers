@@ -291,6 +291,61 @@ def test_high_fidelity_with_multi_level_and_bracketed_headings():
     assert len(res_bracket["errors"]) == 0
 
 
+def test_fabricated_government_agency_blocked():
+    text = "본 사건은 사이버수사처 및 디지털포렌식청, 개인정보보호청의 조사 결과에 근거합니다."
+    res = vlf.verify_legal_text(text)
+    assert res["verdict"] == "FAIL"
+    assert any("사이버수사처" in e for e in res["errors"])
+    assert any("디지털포렌식청" in e for e in res["errors"])
+    assert any("개인정보보호청" in e for e in res["errors"])
+
+
+def test_obsolete_government_ministry_blocked():
+    text = "정보통신부 고시 및 문화공보부 훈령, 재정경제부 인가를 근거로 합니다."
+    res = vlf.verify_legal_text(text)
+    assert res["verdict"] == "FAIL"
+    assert any("정보통신부" in e and "2008년 폐지" in e for e in res["errors"])
+    assert any("문화공보부" in e and "1990년 폐지" in e for e in res["errors"])
+    assert any("재정경제부" in e and "기획재정부" in e for e in res["errors"])
+
+
+def test_valid_current_government_ministry_passes():
+    text = "과학기술정보통신부 고시 및 문화체육관광부 훈령, 고용노동부 지침에 따릅니다."
+    res = vlf.verify_legal_text(text)
+    assert res["verdict"] == "PASS"
+    assert len(res["errors"]) == 0
+
+
+def test_claim_ledger_integration_in_legal_file_verifier(tmp_path):
+    ledger_file = tmp_path / "claim-ledger.md"
+    ledger_file.write_text(
+        "| Claim | Risk Level | Sources (2+ Domains) | Counter-Search Result | Primary Source | Status |\n"
+        "|---|---|---|---|---|:---:|\n"
+        "| [Claim 1] 민법 제750조 불법행위 성립 | High | https://law.go.kr, https://scourt.go.kr | 반대 판례 없음 | https://law.go.kr | `VERIFIED` |\n"
+        "| [Claim 2] 위법성 조각사유 존재 | High | https://law.go.kr | 반증 확인 | https://law.go.kr | `REFUTED` |\n",
+        encoding="utf-8",
+    )
+
+    draft_pass = tmp_path / "draft_pass.md"
+    draft_pass.write_text(
+        "# 준비서면\n원고는 [Claim 1]에 기하여 청구합니다. 민법 제750조. 변호사 검토 필요.\n",
+        encoding="utf-8",
+    )
+    res_pass = vlf.verify_legal_file(str(draft_pass), claim_ledger_path=str(ledger_file))
+    assert res_pass["verdict"] == "PASS"
+    assert len(res_pass["errors"]) == 0
+
+    draft_fail = tmp_path / "draft_fail.md"
+    draft_fail.write_text(
+        "# 준비서면\n피고는 [Claim 2]에 기하여 항변합니다. 변호사 검토 필요.\n",
+        encoding="utf-8",
+    )
+    res_fail = vlf.verify_legal_file(str(draft_fail), claim_ledger_path=str(ledger_file))
+    assert res_fail["verdict"] == "FAIL"
+    assert any("Claim Ledger 위반" in e for e in res_fail["errors"])
+
+
+
 
 
 

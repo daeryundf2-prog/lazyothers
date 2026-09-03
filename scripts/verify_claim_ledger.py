@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""verify_claim_ledger.py — Section 6 Claim Ledger Protocol Verifier.
+
+Mechanically enforces the Claim Ledger protocol:
+1. Every claim record in claim-ledger.md must have:
+   - 2+ independent source domains (or distinct statutory/precedent citations)
+   - Explicit counter-search / counter-argument falsification result
+   - Verifiable primary source
+   - Status: VERIFIED, REFUTED, or UNRESOLVED
+2. If synthesis/draft document is provided, asserts that:
+   - All [Claim X] citations in the draft exist in the ledger
+   - All cited claims have status VERIFIED (no REFUTED or UNRESOLVED claims cited in production)
+
+Directly implements Section 6 of gemini_hallucination_mitigation_deep_dive.md.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from pathlib import Path
+from urllib.parse import urlparse
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+TWO_PART_CCTLDS = {
+    "co.uk", "ac.uk", "org.uk", "gov.uk",
+    "co.kr", "go.kr", "or.kr", "ne.kr", "re.kr",
+    "com.au", "net.au", "org.au",
+    "co.jp", "ne.jp", "ac.jp",
+    "com.cn", "org.cn", "gov.cn",
+}
+
+INVALID_COUNTER_VALUES = {"n/a", "na", "-", "—", "none", "null", "", "없음", "해당없음", "미수행"}
+
+
+def extract_registrable_domain(hostname: str) -> str:
+    clean = hostname.lower().strip()
+    if clean.startswith("www."):
+        clean = clean[4:]
+    parts = clean.split(".")
+    if len(parts) <= 2:
+        return clean
+    last2 = ".".join(parts[-2:])
+    if last2 in TWO_PART_CCTLDS and len(parts) >= 3:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
+def extract_urls(text: str) -> list[str]:
+    return re.findall(r"https?://[^\s)\]><\",]+", text, re.IGNORECASE)
+
+
+def extract_unique_domains(text: str) -> list[str]:
+    urls = extract_urls(text)
+    domains: set[str] = set()
+    for u in urls:
+        try:
+            parsed = urlparse(u)
+            if parsed.hostname:
+                domains.add(extract_registrable_domain(parsed.hostname))
+        except Exception:
+            pass
+    return sorted(list(domains))
+
+
+def extract_legal_authorities(text: str) -> list[str]:
+    """Extract distinct legal statutes and precedents from sources column."""
+    auths: set[str] = set()
+    statutes = re.findall(r"(?:민법|형법|상법|정보통신망법|개인정보보호법|민사소송법|형사소송법)\s*제\s*\d+\s*조", text)
+    for s in statutes:
+        auths.add(re.sub(r"\s+", "", s))
+    precedents = re.findall(r"\d{4}[가-힣]{1,4}\d+", text)
+    for p in precedents:
+        auths.add(p)
+    return sorted(list(auths))
+
+
+def parse_markdown_table(markdown: str) -> list[dict[str, str]]:
+    lines = [l.strip() for l in markdown.splitlines() if l.strip().startswith("|") and l.strip().endswith("|")]
+    if len(lines) < 2:
+        return []
+
+    header_cells = [c.strip().lower() for c in lines[0][1:-1].split("|")]
+    rows: list[dict[str, str]] = []
+
+    for line in lines[1:]:
+        if re.match(r"^\|[\s\-:|]+\|$", line):
+            continue
+        cells = [c.strip() for c in line[1:-1].split("|")]
+        row_dict: dict[str, str] = {}
+        for idx, h in enumerate(header_cells):
+            if idx < len(cells):
+                row_dict[h] = cells[idx]
+        rows.append(row_dict)
+
+    return rows
+
+
+def find_column_value(row: dict[str, str], pattern: re.Pattern) -> str:
+    for k, v in row.items():
+        if pattern.search(k):
+            return v
+    return ""
+
+
+def parse_claim_id(raw_claim: str, index: int) -> str:
+    m = re.search(r"\[?Claim\s*([A-Za-z0-9._-]+)\]?", raw_claim, re.IGNORECASE)
+    if m:
+        return f"Claim {m.group(1)}"
+    return f"Claim {index + 1}"
+
+
+def validate_claim_ledger(
+    ledger_text: str,
+    synthesis_text: str | None = None,
+) -> dict:
+    raw_rows = parse_markdown_table(ledger_text)
+    rows_data: list[dict] = []
+    violations: list[dict[str, str]] = []
+
+    verified_count = 0
+    refuted_count = 0
+    unresolved_count = 0
+
+    claim_col_re = re.compile(r"claim|주장", re.IGNORECASE)
+    risk_col_re = re.compile(r"risk|위험", re.IGNORECASE)
+    sources_col_re = re.compile(r"source|출처|근거", re.IGNORECASE)
+    counter_col_re = re.compile(r"counter|반증|반론", re.IGNORECASE)
+    primary_col_re = re.compile(r"primary|1차|원천", re.IGNORECASE)
+    status_col_re = re.compile(r"status|상태", re.IGNORECASE)
+
+    for i, raw in enumerate(raw_rows):
+        raw_claim = find_column_value(raw, claim_col_re)
+        claim_id = parse_claim_id(raw_claim, i)
+        risk_level = find_column_value(raw, risk_col_re)
+        sources = find_column_value(raw, sources_col_re)
+        counter_search = find_column_value(raw, counter_col_re)
+        primary_source = find_column_value(raw, primary_col_re)
+        raw_status = find_column_value(raw, status_col_re).strip()
+        norm_status = raw_status.replace("`", "").upper()
+
+        row_violations: list[str] = []
+        domains = extract_unique_domains(sources)
+        legal_auths = extract_legal_authorities(sources)
+
+        # Independence count: unique domains + unique primary legal authorities
+        independence_count = len(domains) + len(legal_auths)
+
+        if norm_status == "VERIFIED":
+            verified_count += 1
+            if independence_count < 2:
+                msg = (
+                    f"출처 독립성 미달 (발견: {independence_count}개): "
+                    f"2개 이상의 독립 도메인 또는 법령/판례 출처 필수 (도메인: {domains}, 법률: {legal_auths})"
+                )
+                row_violations.append(msg)
+                violations.append({"claimId": claim_id, "violation": msg})
+
+            counter_clean = counter_search.strip().lower()
+            if counter_clean in INVALID_COUNTER_VALUES:
+                msg = "VERIFIED 상태 주장에는 명시적 반증 검색(Counter-Search) 결과 기록 필수"
+                row_violations.append(msg)
+                violations.append({"claimId": claim_id, "violation": msg})
+
+            primary_clean = primary_source.strip().lower()
+            if not primary_clean or primary_clean in INVALID_COUNTER_VALUES:
+                msg = "VERIFIED 상태 주장에는 1차 출처(Primary Source) 명시 필수"
+                row_violations.append(msg)
+                violations.append({"claimId": claim_id, "violation": msg})
+
+        elif norm_status == "REFUTED":
+            refuted_count += 1
+        elif norm_status == "UNRESOLVED":
+            unresolved_count += 1
+        else:
+            msg = f"유효하지 않은 상태 '{raw_status}': VERIFIED, REFUTED, UNRESOLVED 중 하나여야 함"
+            row_violations.append(msg)
+            violations.append({"claimId": claim_id, "violation": msg})
+
+        rows_data.append({
+            "claimId": claim_id,
+            "claim": raw_claim,
+            "riskLevel": risk_level,
+            "sources": sources,
+            "domains": domains,
+            "legalAuthorities": legal_auths,
+            "counterSearch": counter_search,
+            "primarySource": primary_source,
+            "status": norm_status if norm_status in ("VERIFIED", "REFUTED", "UNRESOLVED") else "INVALID",
+            "rawStatus": raw_status,
+            "violations": row_violations,
+        })
+
+    # Synthesis citation lock check
+    if synthesis_text:
+        citation_re = re.compile(r"\[Claim\s*([A-Za-z0-9._-]+)\]", re.IGNORECASE)
+        for m in citation_re.finditer(synthesis_text):
+            cited_id = f"Claim {m.group(1)}"
+            found = next((r for r in rows_data if r["claimId"].lower() == cited_id.lower()), None)
+            if not found:
+                msg = f"원문 문서에 인용된 [{cited_id}]가 claim-ledger.md에 등록되어 있지 않습니다."
+                violations.append({"claimId": cited_id, "violation": msg})
+            elif found["status"] != "VERIFIED":
+                msg = (
+                    f"원문 문서에 인용된 [{cited_id}]의 원장 상태가 '{found['status']}'입니다. "
+                    "오직 VERIFIED 주장만 본문 인용이 허용됩니다 (Section 6 위반)."
+                )
+                violations.append({"claimId": cited_id, "violation": msg})
+
+    total_claims = len(rows_data)
+    pass_count = sum(1 for r in rows_data if len(r["violations"]) == 0)
+    fail_count = total_claims - pass_count
+
+    return {
+        "ok": len(violations) == 0,
+        "totalClaims": total_claims,
+        "verifiedCount": verified_count,
+        "refutedCount": refuted_count,
+        "unresolvedCount": unresolved_count,
+        "passCount": pass_count,
+        "failCount": fail_count,
+        "rows": rows_data,
+        "violations": violations,
+    }
+
+
+def verify_claim_ledger_file(
+    ledger_path: str | Path,
+    synthesis_path: str | Path | None = None,
+) -> dict:
+    lp = Path(ledger_path)
+    if not lp.is_file():
+        return {
+            "ok": False,
+            "totalClaims": 0,
+            "verifiedCount": 0,
+            "refutedCount": 0,
+            "unresolvedCount": 0,
+            "passCount": 0,
+            "failCount": 0,
+            "rows": [],
+            "violations": [{"claimId": "N/A", "violation": f"Claim ledger file not found: {ledger_path}"}],
+        }
+
+    try:
+        ledger_text = lp.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        ledger_text = lp.read_text(encoding="utf-8-sig", errors="replace")
+
+    synthesis_text = None
+    if synthesis_path:
+        sp = Path(synthesis_path)
+        if sp.is_file():
+            try:
+                synthesis_text = sp.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                synthesis_text = sp.read_text(encoding="utf-8-sig", errors="replace")
+
+    return validate_claim_ledger(ledger_text, synthesis_text=synthesis_text)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Section 6 Claim Ledger Protocol Verifier")
+    parser.add_argument("file", help="Path to claim-ledger.md")
+    parser.add_argument("--synthesis", help="Path to synthesis/draft document to verify citation lock")
+    parser.add_argument("--enforce", action="store_true", help="Exit with code 1 if violations are found")
+    parser.add_argument("--json", action="store_true", help="Output JSON format")
+    args = parser.parse_args(argv)
+
+    report = verify_claim_ledger_file(args.file, synthesis_path=args.synthesis)
+
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        print(f"=== Claim Ledger Protocol Verification ===")
+        print(f"Ledger File: {args.file}")
+        if args.synthesis:
+            print(f"Synthesis File: {args.synthesis}")
+        print(
+            f"Total Claims: {report['totalClaims']} "
+            f"(Verified: {report['verifiedCount']}, Refuted: {report['refutedCount']}, Unresolved: {report['unresolvedCount']})"
+        )
+        print(f"Result: {'PASS' if report['ok'] else 'FAIL'} ({report['passCount']} passed, {report['failCount']} failed)\n")
+
+        if report["violations"]:
+            print(f"Violations ({len(report['violations'])}):")
+            for v in report["violations"]:
+                print(f"  [{v['claimId']}] {v['violation']}")
+        else:
+            print("No violations found. All claim records satisfy Section 6 Claim Ledger Protocol.")
+
+    if args.enforce and not report["ok"]:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

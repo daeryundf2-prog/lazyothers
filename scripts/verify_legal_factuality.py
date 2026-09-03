@@ -95,6 +95,40 @@ FABRICATED_COURT_RE = re.compile(
     r"\b(?:서울민사지방법원|서울형사지방법원|한국연방법원|연방대법원|중앙고등법원|고등대법원|[가-힣]+민사지방법원|[가-힣]+형사지방법원)\b"
 )
 
+# Fabricated government agencies and investigative bodies (Section 5.1 #2)
+FABRICATED_AGENCY_RE = re.compile(
+    r"(?<![가-힣])(?P<agency>디지털포렌식청|사이버수사처|국가포렌식연구원|사이버범죄특별수사처|경찰청사이버보안국|사이버보안청|인공지능윤리청|국가데이터청|개인정보보호청|사이버테러수사본부|정보보호조사위원회|디지털윤리위원회|한국연방검찰청|대검찰청사이버수사청)(?=[이가은는을를의에]|에서|으로|로|\s|[,\.!?\)]|$)"
+)
+
+# Abolished / obsolete government ministries and their current successors (Section 5.1 #2)
+ABOLISHED_GOV_AGENCIES: dict[str, tuple[str, str]] = {
+    "정보통신부": ("2008년 폐지", "과학기술정보통신부 또는 방송통신위원회"),
+    "문화공보부": ("1990년 폐지", "문화체육관광부"),
+    "재정경제원": ("1998년 폐지", "기획재정부"),
+    "재정경제부": ("2008년 개편", "기획재정부"),
+    "미래창조과학부": ("2017년 개편", "과학기술정보통신부"),
+    "과학기술처": ("1998년 개편", "과학기술정보통신부"),
+    "과학기술부": ("2008년 개편", "과학기술정보통신부"),
+    "교육인적자원부": ("2008년 개편", "교육부"),
+    "교육과학기술부": ("2013년 개편", "교육부"),
+    "건설교통부": ("2008년 개편", "국토교통부"),
+    "국토해양부": ("2013년 개편", "국토교통부"),
+    "행정자치부": ("2017년 개편", "행정안전부"),
+    "안전행정부": ("2014년 개편", "행정안전부"),
+    "국민안전처": ("2017년 개편", "행정안전부/소방청/해양경찰청"),
+    "산업자원부": ("2008년 개편", "산업통상자원부"),
+    "지식경제부": ("2013년 개편", "산업통상자원부"),
+    "상공자원부": ("1994년 개편", "산업통상자원부"),
+    "동력자원부": ("1993년 개편", "산업통상자원부"),
+    "보건사회부": ("1994년 개편", "보건복지부"),
+    "노동부": ("2010년 개편", "고용노동부"),
+    "총무처": ("1998년 폐지", "행정안전부"),
+    "내무부": ("1998년 폐지", "행정안전부"),
+    "공보처": ("1998년 폐지", "문화체육관광부"),
+    "기획예산처": ("2008년 개편", "기획재정부"),
+    "철도청": ("2005년 개편", "한국철도공사/국가철도공단"),
+}
+
 EVIDENCE_TAG_RE = re.compile(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", re.DOTALL | re.IGNORECASE)
 
 
@@ -154,12 +188,27 @@ def verify_legal_text(
                 f"대법원 규격 사건부호 여부를 확인하십시오."
             )
 
-    # 3. Fabricated or abolished court names check (Section 5.1 #2)
+    # 3-1. Fabricated or abolished court names check (Section 5.1 #2)
     for m in FABRICATED_COURT_RE.finditer(text):
         fake_court = m.group(0)
         errors.append(
             f"[법원 명칭 날조] 폐지되거나 실존하지 않는 법원 명칭 인용: {fake_court} (Section 5.1 위반)"
         )
+
+    # 3-2. Fabricated government agencies and committees (Section 5.1 #2)
+    for m in FABRICATED_AGENCY_RE.finditer(text):
+        fake_agency = m.group("agency")
+        errors.append(
+            f"[정부기관 명칭 날조] 실존하지 않는 가짜 관공서/기구 명칭 인용: {fake_agency} (Section 5.1 위반)"
+        )
+
+    # 3-3. Abolished government ministries check (Section 5.1 #2)
+    for agency, (abolish_info, successor) in ABOLISHED_GOV_AGENCIES.items():
+        pat = re.compile(rf"(?<![가-힣]){re.escape(agency)}(?:장관|차관|령|고시|지침)?(?=[이가은는을를의에]|에서|으로|로|\s|[,\.!?\)]|$)")
+        if pat.search(text):
+            errors.append(
+                f"[정부기관 명칭 오류/날조] 폐지된 구 정부 부처명 인용: '{agency}' ({abolish_info}, 현행 '{successor}' 명칭 사용 필수) (Section 5.1 위반)"
+            )
 
     # 4. Evidence tag attribution check (Section 3.2 #1)
     evidence_matches = EVIDENCE_TAG_RE.findall(text)
@@ -242,6 +291,7 @@ def verify_legal_file(
     source_path: str | Path | None = None,
     morph_grounding: bool = False,
     high_fidelity: bool = False,
+    claim_ledger_path: str | Path | None = None,
 ) -> dict:
     path = Path(file_path)
     if not path.is_file():
@@ -263,13 +313,43 @@ def verify_legal_file(
         if sp.is_file():
             source_text = sp.read_text(encoding="utf-8", errors="replace")
 
-    return verify_legal_text(
+    result = verify_legal_text(
         content,
         current_year=current_year,
         source_text=source_text,
         morph_grounding=morph_grounding,
         high_fidelity=high_fidelity,
     )
+
+    # Section 6 Claim Ledger integration
+    if claim_ledger_path:
+        try:
+            from scripts.verify_claim_ledger import verify_claim_ledger_file
+        except ImportError:
+            try:
+                from verify_claim_ledger import verify_claim_ledger_file
+            except ImportError:
+                verify_claim_ledger_file = None
+
+        if verify_claim_ledger_file is not None:
+            ledger_report = verify_claim_ledger_file(claim_ledger_path, synthesis_path=file_path)
+            if not ledger_report["ok"]:
+                for v in ledger_report["violations"]:
+                    result["errors"].append(f"[Claim Ledger 위반] [{v['claimId']}] {v['violation']}")
+            result["claim_ledger"] = {
+                "ok": ledger_report["ok"],
+                "totalClaims": ledger_report["totalClaims"],
+                "verifiedCount": ledger_report["verifiedCount"],
+            }
+        else:
+            result["warnings"].append("verify_claim_ledger 모듈을 찾을 수 없어 원장 검증을 건너뛰었습니다.")
+
+    if result["errors"]:
+        result["verdict"] = "FAIL"
+    elif result["warnings"] and result["verdict"] == "PASS":
+        result["verdict"] = "WARN"
+
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("file", help="Path to legal document (.md, .txt) to verify")
     parser.add_argument("--source", help="Optional path to source evidence/facts for grounding check")
+    parser.add_argument("--claim-ledger", help="Optional path to claim-ledger.md for Section 6 verification")
     parser.add_argument("--morph-grounding", action="store_true", help="Enforce Kiwi morphological hybrid grounding check against source")
     parser.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding mode")
     parser.add_argument("--json", action="store_true", help="Output JSON results")
@@ -289,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
         source_path=args.source,
         morph_grounding=args.morph_grounding,
         high_fidelity=args.high_fidelity,
+        claim_ledger_path=args.claim_ledger,
     )
 
     if args.json:

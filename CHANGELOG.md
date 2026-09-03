@@ -2,6 +2,13 @@
 
 ## [Unreleased] — 2026-08-30
 
+### Added — Section 5.1 #2 공공기관 및 폐지 부처 명칭 날조 차단 & Section 6 Legal Claim Ledger 프로토콜
+
+- `scripts/verify_legal_factuality.py`: 가짜 공공기관/위원회(`FABRICATED_AGENCY_RE`, e.g. 사이버수사처, 디지털포렌식청, 개인정보보호청, 정보보호조사위원회 등) 및 폐지된 25개 구 정부 부처명(`ABOLISHED_GOV_AGENCIES`, e.g. 정보통신부, 문화공보부, 재정경제부 등) 탐지 및 FAIL 차단.
+- `scripts/verify_claim_ledger.py`: Section 6 Legal Claim Ledger 프로토콜 검증기 신설 — 2개 이상의 독립 도메인 또는 2개 이상의 독립 법령/판례 출처 검증, 명시적 반증 검색(Counter-Search) / 반대 법리 검증, 1차 출처 명시, 소장/준비서면 인용 잠금(`[Claim X]`는 `VERIFIED` 상태만 인용 허용) 검증.
+- `scripts/verify_legal_factuality.py --claim-ledger <path>`: 법률 문서 초안 검증 시 Claim Ledger 연계 검증 지원.
+- 단위 테스트 신설 및 보강: `tests/test_verify_claim_ledger.py` 신설(8개), `tests/test_verify_legal_factuality.py`에 날조 기관/폐지 부처/원장 연동 테스트 추가.
+
 ### Added — Guard Pack 도입 (GUARD_PACK_VERSION 1.0.0, canonical: lazyforensic)
 
 - `hooks.json` 신설 + `plugin.json`에 `hooks` 필드 등록 — 이 플러그인은 지금까지 훅 방어선이 전무했다.
