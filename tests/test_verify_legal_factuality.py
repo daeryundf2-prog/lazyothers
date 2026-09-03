@@ -156,4 +156,44 @@ def test_legal_factuality_guard_file_key(tmp_path):
     assert "형사소송법" in proc.stderr or "LEGAL FACTUALITY GUARD" in proc.stderr
 
 
+def test_abolished_and_fabricated_courts_blocked():
+    text1 = "서울민사지방법원 2021가단100 판결을 원용합니다."
+    res1 = vlf.verify_legal_text(text1)
+    assert res1["verdict"] == "FAIL"
+    assert any("서울민사지방법원" in e and "법원 명칭 날조" in e for e in res1["errors"])
+
+    text2 = "한국연방법원 2023가합500 소송 계속 중입니다."
+    res2 = vlf.verify_legal_text(text2)
+    assert res2["verdict"] == "FAIL"
+    assert any("한국연방법원" in e and "법원 명칭 날조" in e for e in res2["errors"])
+
+
+def test_evidence_tag_attribution_and_grounding():
+    source_facts = "2024년 1월 16일 원고는 피고에게 금 10,000,000원을 무통장 송금하였다."
+
+    # Matching quote passes
+    draft_valid = (
+        "<evidence>2024년 1월 16일 원고는 피고에게 금 10,000,000원을 무통장 송금하였다.</evidence>\n"
+        "피고는 원고로부터 대여금을 수령하였습니다."
+    )
+    res_valid = vlf.verify_legal_text(draft_valid, source_text=source_facts)
+    assert res_valid["verdict"] == "PASS"
+
+    # Fabricated quote fails verbatim match
+    draft_invalid = (
+        "<evidence>2024년 5월 20일 피고가 전액 상환하겠다고 각서를 작성하였다.</evidence>\n"
+        "피고는 채무를 승인하였습니다."
+    )
+    res_invalid = vlf.verify_legal_text(draft_invalid, source_text=source_facts)
+    assert res_invalid["verdict"] == "FAIL"
+    assert any("근거 인용 불일치" in e for e in res_invalid["errors"])
+
+    # Empty evidence tag fails
+    draft_empty = "<evidence>   </evidence>\n소장 내용."
+    res_empty = vlf.verify_legal_text(draft_empty)
+    assert res_empty["verdict"] == "FAIL"
+    assert any("비어 있습니다" in e for e in res_empty["errors"])
+
+
+
 

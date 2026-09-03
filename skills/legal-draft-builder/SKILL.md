@@ -43,17 +43,25 @@ python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o
 
 ## 법률 사실성 검증 (Anti-Hallucination Gate)
 
-`generate_legal_draft.py`는 대한민국 주요 법령의 조문 상한 경계(`STATUTE_BOUNDS`, 예: 민법 1118조, 형법 372조)와 대법원 판례 연도(1948~2026년) 및 사건부호 규칙을 기계적으로 자동 검증합니다.
+`generate_legal_draft.py`와 `verify_legal_factuality.py`는 `gemini_hallucination_mitigation_deep_dive.md`의 환각 방어 프로토콜을 구현합니다:
+1. **Evidence-First 프로토콜 (Section 3.2 #1)**: 사실관계 서述 시 원문 증거 구절을 `<evidence>...</evidence>` 태그로 인용하거나 본문에 명시적 서증(`갑 제1호증`)을 기재하도록 강제합니다 (`--strict-evidence`).
+2. **Strict Abstention 프로토콜 (Section 3.2 #2)**: 사실관계가 불명확하거나 증거가 없는 쟁점은 지어내지 않고 `[INSUFFICIENT_DATA]` 또는 `{...}` 플레이스홀더로 기권합니다.
+3. **법령 조문 및 판례 상한 경계 (Section 5.1 #1)**: 대한민국 주요 법령의 조문 상한 경계(`STATUTE_BOUNDS`, 예: 민법 1118조, 형법 372조)와 대법원 판례 연도(1948~2026년) 및 사건부호 규칙을 기계적으로 자동 검증합니다.
+4. **법원 명칭 날조 차단 (Section 5.1 #2)**: 폐지되거나 실존하지 않는 가짜 법원 명칭(`서울민사지방법원`, `한국연방법원`, `고등대법원` 등)을 즉시 차단합니다.
+5. **Kiwi 형태소 하이브리드 그라운딩 (Section 5.2)**: `kiwipiepy` 형태소 분석기를 통해 조사(은/는/이/가/을/를/의)를 분리하고 법률 고유명사 사전을 탑재하여 원본 증거와 초안 간의 형태소 정합성을 감사합니다.
 
 ```bash
-# 초안 생성 시 자동 사실성 검증 수행 (허위 조문이나 미래 연도 판례 발견 시 즉각 차단)
-python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o 소장_초안.md
+# 초안 생성 시 자동 사실성 및 엄격 증거 검증 수행
+python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o 소장_초안.md --strict-evidence
 
-# 작성된 마크다운 초안의 조문/판례 사실성 단독 검사
-python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 소장_초안.md --json
+# 작성된 마크다운 초안의 조문/판례/법원명칭 사실성 단독 검사 (원본 증거 대조 포함)
+python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 소장_초안.md --source 증거_사실관계.txt --json
+
+# Kiwi 형태소 기반 증거-초안 렉시컬 그라운딩 오버랩 검사
+python ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 증거_사실관계.txt --target 소장_초안.md --json
 ```
 
-- 허위 조문(예: 민법 제1500조) 또는 가짜 판례가 감지되면 exit 1로 생성이 차단됩니다.
+- 허위 조문(예: 민법 제1500조), 미래 판례, 가짜 법원명칭, 근거 없는 사실 날조 발견 시 exit 1로 생성이 차단됩니다.
 - 포스트툴유즈 훅(`legal_factuality_guard.mjs`) 역시 새로 쓰인 법률 문서에 대해 FAIL_CLOSED 원칙으로 위반을 차단합니다.
 
 ## HWPX 변환 (제출용 서식이 필요할 때)

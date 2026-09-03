@@ -90,8 +90,15 @@ PRECEDENT_RE = re.compile(
     r"(?P<year>\d{4})\s*(?P<code>[가-힣]{1,4})\s*(?P<num>\d+)\b"
 )
 
+# Abolished or fabricated court names (Section 5.1 #2)
+FABRICATED_COURT_RE = re.compile(
+    r"\b(?:서울민사지방법원|서울형사지방법원|한국연방법원|연방대법원|중앙고등법원|고등대법원|[가-힣]+민사지방법원|[가-힣]+형사지방법원)\b"
+)
 
-def verify_legal_text(text: str, current_year: int = 2026) -> dict:
+EVIDENCE_TAG_RE = re.compile(r"<evidence>(.*?)</evidence>", re.DOTALL)
+
+
+def verify_legal_text(text: str, current_year: int = 2026, source_text: str | None = None) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
     cited_statutes: list[str] = []
@@ -141,7 +148,47 @@ def verify_legal_text(text: str, current_year: int = 2026) -> dict:
                 f"대법원 규격 사건부호 여부를 확인하십시오."
             )
 
-    # 3. Grounding notice check for legal drafts
+    # 3. Fabricated or abolished court names check (Section 5.1 #2)
+    for m in FABRICATED_COURT_RE.finditer(text):
+        fake_court = m.group(0)
+        errors.append(
+            f"[법원 명칭 날조] 폐지되거나 실존하지 않는 법원 명칭 인용: {fake_court} (Section 5.1 위반)"
+        )
+
+    # 4. Evidence tag attribution check (Section 3.2 #1)
+    evidence_matches = EVIDENCE_TAG_RE.findall(text)
+    for quote in evidence_matches:
+        q_strip = quote.strip()
+        if not q_strip:
+            errors.append("<evidence> 태그가 비어 있습니다. 답변 근거 구절을 채우십시오.")
+        elif source_text:
+            # Check verbatim presence in source text
+            clean_quote = re.sub(r"\s+", " ", q_strip)
+            clean_source = re.sub(r"\s+", " ", source_text)
+            if clean_quote not in clean_source:
+                errors.append(
+                    f"근거 인용 불일치: <evidence> 구절('{q_strip[:25]}...')이 원문(source)에 존재하지 않습니다."
+                )
+
+    # 5. Morphological grounding check if source text is provided (Section 5.2)
+    if source_text:
+        try:
+            from scripts.korean_morph_grounding import calculate_grounding_overlap
+        except ImportError:
+            try:
+                from korean_morph_grounding import calculate_grounding_overlap
+            except ImportError:
+                calculate_grounding_overlap = None
+
+        if calculate_grounding_overlap is not None:
+            overlap = calculate_grounding_overlap(source_text, text, threshold=0.65)
+            if not overlap["is_grounded"]:
+                warnings.append(
+                    f"형태소 그라운딩 미달 ({overlap['grounding_score']*100:.1f}% < 65%): "
+                    f"원문에 없는 고유/전문 용어 다수 사용 {overlap['unsupported_terms'][:5]}"
+                )
+
+    # 6. Grounding notice check for legal drafts
     if "# 소 장" in text or "# 준 비 서 면" in text or "# 고 소 장" in text:
         if "변호사" not in text and "AI 생성" not in text:
             warnings.append("법률 문서 초안에 필수 법적 고지(변호사 검토 안내)가 누락되었습니다.")
@@ -156,7 +203,7 @@ def verify_legal_text(text: str, current_year: int = 2026) -> dict:
     }
 
 
-def verify_legal_file(file_path: str | Path, current_year: int = 2026) -> dict:
+def verify_legal_file(file_path: str | Path, current_year: int = 2026, source_path: str | Path | None = None) -> dict:
     path = Path(file_path)
     if not path.is_file():
         return {
@@ -170,7 +217,14 @@ def verify_legal_file(file_path: str | Path, current_year: int = 2026) -> dict:
         content = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         content = path.read_text(encoding="utf-8-sig", errors="replace")
-    return verify_legal_text(content, current_year=current_year)
+
+    source_text = None
+    if source_path:
+        sp = Path(source_path)
+        if sp.is_file():
+            source_text = sp.read_text(encoding="utf-8", errors="replace")
+
+    return verify_legal_text(content, current_year=current_year, source_text=source_text)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -178,11 +232,12 @@ def main(argv: list[str] | None = None) -> int:
         description="Korean Legal and Precedent Hallucination Verifier"
     )
     parser.add_argument("file", help="Path to legal document (.md, .txt) to verify")
+    parser.add_argument("--source", help="Optional path to source evidence/facts for grounding check")
     parser.add_argument("--json", action="store_true", help="Output JSON results")
     parser.add_argument("--strict", action="store_true", help="Fail on warnings as well")
     args = parser.parse_args(argv)
 
-    result = verify_legal_file(args.file)
+    result = verify_legal_file(args.file, source_path=args.source)
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

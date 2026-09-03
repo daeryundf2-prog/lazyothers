@@ -119,3 +119,21 @@ def test_factuality_verification_blocks_future_precedent(tmp_path):
     out = tmp_path / "future_out.md"
     assert gld.main(["--input-json", str(src), "--output", str(out)]) == 1
     assert not out.exists()
+
+
+def test_evidence_tags_supported():
+    data = json.loads(json.dumps(BASE))
+    data["facts"][0]["paragraphs"] = [
+        "<evidence>2024년 1월 16일 금 10,000,000원을 무통장 입금하였다.</evidence> 피고에게 대여금을 교부하였습니다."
+    ]
+    md = gld.generate(data)
+    assert "<evidence>" in md and "무통장 입금" in md
+
+
+def test_strict_evidence_blocks_ungrounded_paragraph():
+    data = json.loads(json.dumps(BASE))
+    data["facts"] = [{"heading": "무근거 사실", "paragraphs": ["피고는 원고에게 폭언을 일삼았다."]}]
+    with pytest.raises(ValueError) as exc:
+        gld.generate(data, strict_evidence=True)
+    assert "Strict Evidence Gate" in str(exc.value)
+

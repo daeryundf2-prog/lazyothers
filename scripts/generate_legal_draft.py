@@ -119,7 +119,7 @@ def _party_header(case_info: dict) -> list[str]:
     return lines
 
 
-def _facts_section(facts: list[dict], index: dict[str, str]) -> list[str]:
+def _facts_section(facts: list[dict], index: dict[str, str], strict_evidence: bool = False) -> list[str]:
     lines: list[str] = []
     for fact in facts:
         heading = fact.get("heading") or ""
@@ -128,7 +128,13 @@ def _facts_section(facts: list[dict], index: dict[str, str]) -> list[str]:
         paragraphs = fact.get("paragraphs") or ([fact["text"]] if fact.get("text") else [])
         body = "\n\n".join(str(t) for t in paragraphs)
         lines.append(body)
-        line = method_line(body, fact.get("evidence") or [], index)
+        explicit_evidence = fact.get("evidence") or []
+        evidence_tags = re.findall(r"<evidence>(.*?)</evidence>", body, re.DOTALL)
+        line = method_line(body, explicit_evidence, index)
+        if strict_evidence and not line and not evidence_tags:
+            raise ValueError(
+                f"Strict Evidence Gate: 사실관계 항목({heading or body[:20]}...)에 서증 또는 <evidence> 근거 인용이 없습니다."
+            )
         if line:
             lines.append("")
             lines.append(line)
@@ -143,32 +149,32 @@ def _evidence_appendix(evidence_list: list[dict]) -> list[str]:
     return lines
 
 
-def render_sojang(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict]) -> list[str]:
+def render_sojang(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict], strict_evidence: bool = False) -> list[str]:
     lines = _party_header(case_info) + ["", "# 소 장\n", "## 청구취지\n"]
     for i, claim in enumerate(claims, 1):
         lines.append(f"{i}. {claim}")
     lines += ["", "## 청구원인\n"]
-    lines += _facts_section(facts, build_evidence_index(evidence_list))
+    lines += _facts_section(facts, build_evidence_index(evidence_list), strict_evidence=strict_evidence)
     lines += ["## 법적 근거\n", "{민법 제388조(채무불이행), 제750조(불법행위) 등 청구원인 규정을 변호사 검토 후 기재}\n"]
     lines += ["## 결론\n", "구하건은, 피고는 원고에게 본 청구취지 기재 금원을 지급하라.\n"]
     lines += _evidence_appendix(evidence_list)
     return lines
 
 
-def render_junbi(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict]) -> list[str]:
+def render_junbi(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict], strict_evidence: bool = False) -> list[str]:
     lines = _party_header(case_info) + ["", "# 준 비 서 면\n", "## 답변의 요지\n"]
     for i, claim in enumerate(claims, 1):
         lines.append(f"{i}. {claim}")
     lines += ["", "## 주장 및 항변\n"]
-    lines += _facts_section(facts, build_evidence_index(evidence_list))
+    lines += _facts_section(facts, build_evidence_index(evidence_list), strict_evidence=strict_evidence)
     lines += ["## 결론\n", "구하건은, 원고의 청구를 모두 기각한다.\n"]
     lines += _evidence_appendix(evidence_list)
     return lines
 
 
-def render_goso(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict]) -> list[str]:
+def render_goso(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict], strict_evidence: bool = False) -> list[str]:
     lines = _party_header(case_info) + ["", "# 고 소 장\n", "## 범죄사실\n"]
-    lines += _facts_section(facts, build_evidence_index(evidence_list))
+    lines += _facts_section(facts, build_evidence_index(evidence_list), strict_evidence=strict_evidence)
     lines += ["## 고소 이유\n"]
     if claims:
         for i, c in enumerate(claims, 1):
@@ -179,9 +185,9 @@ def render_goso(case_info: dict, claims: list[str], facts: list[dict], evidence_
     return lines
 
 
-def render_naeyong(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict]) -> list[str]:
+def render_naeyong(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict], strict_evidence: bool = False) -> list[str]:
     lines = [f"**발신인:** {case_info.get('plaintiff', '(발신인)')}", f"**수신인:** {case_info.get('defendant', '(수신인)')}", "", "# 내 용 증 명\n", "## 경위\n"]
-    lines += _facts_section(facts, build_evidence_index(evidence_list))
+    lines += _facts_section(facts, build_evidence_index(evidence_list), strict_evidence=strict_evidence)
     lines += ["## 요구 사항\n"]
     for i, c in enumerate(claims, 1):
         lines.append(f"{i}. {c}")
@@ -198,7 +204,7 @@ RENDERERS = {
 }
 
 
-def generate(data: dict, verify: bool = True, strict: bool = False) -> str:
+def generate(data: dict, verify: bool = True, strict: bool = False, strict_evidence: bool = False) -> str:
     doc_type = str(data.get("type", "소장")).strip()
     if doc_type not in DRAFT_TYPES:
         raise ValueError(f"type은 {DRAFT_TYPES} 중 하나여야 합니다: {doc_type!r}")
@@ -208,7 +214,7 @@ def generate(data: dict, verify: bool = True, strict: bool = False) -> str:
     evidence_list = data.get("evidence_list") or []
 
     lines = [DISCLAIMER, ""]
-    lines += RENDERERS[doc_type](case_info, claims, facts, evidence_list)
+    lines += RENDERERS[doc_type](case_info, claims, facts, evidence_list, strict_evidence=strict_evidence)
     lines.append("---\n")
     lines.append(f"**작성(초안 생성)일자:** {datetime.now().strftime('%Y년 %m월 %d일')}")
     lines.append("**고지:** 본 초안은 AI 생성물입니다. 법률 용어·청구 원인 구성·증거 번호 체계는 변호사 검토가 필수입니다.")
@@ -231,6 +237,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--verify", dest="verify", action="store_true", default=True, help="조문 및 판례 사실성 검증 수행 (기본 활성)")
     p.add_argument("--no-verify", dest="verify", action="store_false", help="사실성 검증 건너뛰기")
     p.add_argument("--strict", action="store_true", help="경고 발생 시에도 실패 처리")
+    p.add_argument("--strict-evidence", action="store_true", help="사실관계 항목마다 명시적 서증 또는 <evidence> 태그 인용 강제")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input_json):
@@ -244,12 +251,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        md = generate(data, verify=args.verify, strict=args.strict)
+        md = generate(data, verify=args.verify, strict=args.strict, strict_evidence=args.strict_evidence)
     except ValueError as exc:
         msg = str(exc)
-        if "법률 사실성 검증 실패" in msg or "법률 경고 발생" in msg:
+        if "법률 사실성 검증 실패" in msg or "법률 경고 발생" in msg or "Strict Evidence Gate" in msg:
             print(f"[FAIL] {msg}", file=sys.stderr)
-            print("error: 허위 조문 또는 날조된 판례가 포함되어 초안 생성을 차단합니다.", file=sys.stderr)
+            print("error: 허위 조문, 날조된 판례 또는 무근거 사실관계가 포함되어 초안 생성을 차단합니다.", file=sys.stderr)
             return 1
         print(f"error: {msg}", file=sys.stderr)
         return 2
