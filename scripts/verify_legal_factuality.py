@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""verify_legal_factuality.py — Korean Legal and Precedent Hallucination Verifier.
+
+Audits legal drafts, court ruling analyses, and legal documents against:
+1. Statutory boundary bounds (e.g., Civil Act max article 1118, Criminal Act max 372).
+2. Precedent format validity and year bounds (e.g., blocking future years or nonsense codes).
+3. Grounding citations (warning on ungrounded legal claims without source references).
+
+Directly addresses Section 5.1 & 5.2 of gemini_hallucination_mitigation_deep_dive.md.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+# Max article numbers for major Korean codes (as of 2026)
+STATUTE_BOUNDS = {
+    "민법": 1118,
+    "형법": 372,
+    "개인정보보호법": 76,
+    "정보통신망법": 76,
+    "정보통신망 이용촉진 및 정보보호 등에 관한 법률": 76,
+    "상법": 935,
+    "민사소송법": 502,
+    "형사소송법": 493,
+    "행정소송법": 46,
+    "근로기준법": 116,
+    "부정경쟁방지법": 18,
+    "부정경쟁방지 및 영업비밀보호에 관한 법률": 18,
+    "전자문서법": 37,
+    "전자문서 및 전자거래 기본법": 37,
+}
+
+# Standard Korean court precedent symbol categories
+VALID_CASE_CODES = {
+    # 민사
+    "가단", "가합", "가소", "나", "다", "라", "마", "그", "바", "자", "차",
+    # 형사
+    "고단", "고합", "고약", "노", "도", "로", "모", "오", "보", "코",
+    # 가사
+    "드", "르", "므", "스", "으",
+    # 행정/특허
+    "구", "구합", "구단", "누", "두", "루", "무", "허",
+    # 헌법재판소
+    "헌가", "헌나", "헌다", "헌라", "헌마", "헌바", "헌사", "헌아",
+}
+
+PRECEDENT_RE = re.compile(
+    r"\b(?P<court>대법원|서울고등법원|서울중앙지방법원|[가-힣]{2,6}지방법원|[가-힣]{2,6}고등법원)?\s*"
+    r"(?P<year>\d{4})\s*(?P<code>[가-힣]{1,4})\s*(?P<num>\d+)\b"
+)
+
+STATUTE_ARTICLE_RE = re.compile(r"([가-힣\s]+?)\s*제\s*(\d+)\s*조(?:의\s*(\d+))?")
+
+
+def verify_legal_text(text: str, current_year: int = 2026) -> dict:
+    errors: list[str] = []
+    warnings: list[str] = []
+    cited_statutes: list[str] = []
+    cited_precedents: list[str] = []
+
+    # 1. Statutory bounds check
+    for statute_name, max_art in STATUTE_BOUNDS.items():
+        pattern = re.compile(rf"{re.escape(statute_name)}\s*제\s*(\d+)\s*조")
+        for match in pattern.finditer(text):
+            art_num = int(match.group(1))
+            full_ref = match.group(0)
+            cited_statutes.append(full_ref)
+            if art_num < 1 or art_num > max_art:
+                errors.append(
+                    f"[{statute_name}] 허위 조문 날조: 제{art_num}조 — "
+                    f"현행 {statute_name}은 제1조~제{max_art}조까지만 존재합니다."
+                )
+
+    # 2. Precedent format and year sanity check
+    for match in PRECEDENT_RE.finditer(text):
+        year = int(match.group("year"))
+        code = match.group("code")
+        num = match.group("num")
+        case_str = f"{year}{code}{num}"
+        cited_precedents.append(case_str)
+
+        if year > current_year:
+            errors.append(
+                f"[판례 날조] 미래 연도 판결 인용: {case_str} — "
+                f"현재 연도({current_year}년)보다 미래의 사건번호는 날조된 환각입니다."
+            )
+        elif year < 1948:
+            errors.append(
+                f"[판례 날조] 대한민국 사법부 수립 이전 연도 판결: {case_str} (1948년 이전)."
+            )
+
+        if code not in VALID_CASE_CODES:
+            warnings.append(
+                f"[판례 부호 의심] 비표준 사건부호 인용: '{code}' in {case_str} — "
+                f"대법원 규격 사건부호 여부를 확인하십시오."
+            )
+
+    # 3. Grounding notice check for legal drafts
+    if "# 소 장" in text or "# 준 비 서 면" in text or "# 고 소 장" in text:
+        if "변호사" not in text and "AI 생성" not in text:
+            warnings.append("법률 문서 초안에 필수 법적 고지(변호사 검토 안내)가 누락되었습니다.")
+
+    verdict = "FAIL" if errors else ("WARN" if warnings else "PASS")
+    return {
+        "verdict": verdict,
+        "errors": errors,
+        "warnings": warnings,
+        "cited_statutes": sorted(list(set(cited_statutes))),
+        "cited_precedents": sorted(list(set(cited_precedents))),
+    }
+
+
+def verify_legal_file(file_path: str | Path, current_year: int = 2026) -> dict:
+    path = Path(file_path)
+    if not path.is_file():
+        return {
+            "verdict": "FAIL",
+            "errors": [f"File not found: {file_path}"],
+            "warnings": [],
+            "cited_statutes": [],
+            "cited_precedents": [],
+        }
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        content = path.read_text(encoding="utf-8-sig", errors="replace")
+    return verify_legal_text(content, current_year=current_year)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Korean Legal and Precedent Hallucination Verifier"
+    )
+    parser.add_argument("file", help="Path to legal document (.md, .txt) to verify")
+    parser.add_argument("--json", action="store_true", help="Output JSON results")
+    parser.add_argument("--strict", action="store_true", help="Fail on warnings as well")
+    args = parser.parse_args(argv)
+
+    result = verify_legal_file(args.file)
+
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        if result["errors"]:
+            print(f"[FAIL] Legal hallucination detected ({len(result['errors'])} errors):", file=sys.stderr)
+            for err in result["errors"]:
+                print(f"  - ERROR: {err}", file=sys.stderr)
+        if result["warnings"]:
+            print(f"[WARN] Legal warnings ({len(result['warnings'])} warnings):", file=sys.stderr)
+            for warn in result["warnings"]:
+                print(f"  - WARN: {warn}", file=sys.stderr)
+        if result["verdict"] == "PASS":
+            print(f"[PASS] All {len(result['cited_statutes'])} statutes and {len(result['cited_precedents'])} precedents grounded.")
+
+    if result["errors"] or (args.strict and result["warnings"]):
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

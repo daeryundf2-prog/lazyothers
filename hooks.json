@@ -10,6 +10,13 @@
 						"timeout": 5,
 						"statusMessage": "LazyOthers: Markdown structure guard (스트리핑/빈 링크/표 불일치)",
 						"failurePolicy": "FAIL_CLOSED"
+					},
+					{
+						"type": "command",
+						"command": "node \"${PLUGIN_ROOT}/scripts/legal_factuality_guard.mjs\"",
+						"timeout": 5,
+						"statusMessage": "LazyOthers: Legal factuality guard (조문/판례 날조 검증)",
+						"failurePolicy": "FAIL_CLOSED"
 					}
 				]
 			},
@@ -21,6 +28,13 @@
 						"command": "node \"${PLUGIN_ROOT}/scripts/markdown_structure_guard.mjs\"",
 						"timeout": 5,
 						"statusMessage": "LazyOthers: Markdown structure guard (bash 리다이렉트 쓰기 포함)",
+						"failurePolicy": "FAIL_CLOSED"
+					},
+					{
+						"type": "command",
+						"command": "node \"${PLUGIN_ROOT}/scripts/legal_factuality_guard.mjs\"",
+						"timeout": 5,
+						"statusMessage": "LazyOthers: Legal factuality guard (bash 리다이렉트 쓰기 포함)",
 						"failurePolicy": "FAIL_CLOSED"
 					}
 				]
