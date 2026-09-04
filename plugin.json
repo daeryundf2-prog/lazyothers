@@ -1,7 +1,7 @@
 {
   "name": "lazyothers",
   "version": "0.5.0",
-  "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, Humanize KR AI writing refinement, and external MCP tools.",
+  "description": "Google Antigravity + Gemini 3.8 Flash plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, Humanize KR AI writing refinement, and external MCP tools.",
   "author": {
     "name": "daeryundf2-prog",
     "url": "https://github.com/daeryundf2-prog"
@@ -29,7 +29,7 @@
   "interface": {
     "displayName": "LazyOthers",
     "shortDescription": "Korean Legal-Tech, Document Processing & Humanize KR",
-    "longDescription": "Bundles HWP/HWPX parsing, court evidence stamping, Humanize KR (im-not-ai) AI text refinement, context7, grep_app, kordoc, and xds tools.",
+    "longDescription": "Bundles HWP/HWPX parsing, court evidence stamping, Humanize KR (im-not-ai) AI text refinement, context7, grep_app, kordoc, and xds tools for Google Antigravity with Gemini 3.8 Flash as the session default.",
     "developerName": "daeryundf2-prog",
     "category": "Productivity & Legal-Tech",
     "brandColor": "#10B981"

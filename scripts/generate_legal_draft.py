@@ -263,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--strict", action="store_true", help="경고 발생 시에도 실패 처리")
     p.add_argument("--strict-evidence", action="store_true", help="사실관계 항목마다 명시적 서증 또는 <evidence> 태그 인용 강제")
     p.add_argument("--morph-grounding", action="store_true", help="Kiwi 형태소 기반 하이브리드 그라운딩 검증")
-    p.add_argument("--high-fidelity", action="store_true", help="Vertex AI High-Fidelity strict non-parametric grounding gate")
+    p.add_argument("--high-fidelity", action="store_true", help="Local High-Fidelity gate: require --source and <evidence> tags plus morpheme overlap (no Vertex API)")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input_json):

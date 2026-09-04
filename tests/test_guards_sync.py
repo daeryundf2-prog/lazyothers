@@ -127,3 +127,14 @@ def test_hooks_json_contains_legal_guard():
     commands = [h["command"] for entry in ptu for h in entry.get("hooks", [])]
     assert any("legal_factuality_guard.mjs" in c for c in commands)
 
+
+def test_hooks_matchers_cover_write_file_and_shell():
+    hooks_data = json.loads((ROOT / "hooks.json").read_text(encoding="utf-8"))
+    ptu = hooks_data["hooks"]["PostToolUse"]
+    write_m = ptu[0]["matcher"]
+    shell_m = ptu[1]["matcher"]
+    for token in ("write_file", "WriteToFile", "WriteFile", "MultiEdit", "SearchReplace"):
+        assert token in write_m
+    for token in ("Bash", "bash", "Shell", "shell", "execute_command"):
+        assert token in shell_m
+

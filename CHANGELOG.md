@@ -1,5 +1,16 @@
 # Changelog
 
+### Changed — Gemini 3.8 Flash session default
+
+- `plugin.json` description and longDescription name Google Antigravity + Gemini 3.8 Flash as the session default.
+
+### Fixed — Humanize SKILL_ROOT, hook matchers, Guard Pack sync, High-Fidelity branding
+
+- `scripts/resolve_plugin_root.py`: Antigravity `${PLUGIN_ROOT}` / `plugin.json` walk-up. Stops at a real plugin root; never returns `C:\`.
+- `hooks.json` PostToolUse matchers include `write_file`/`WriteToFile`/`Bash`/`Shell`.
+- Guard Pack files resynced from canonical lazyforensic (`markdown_structure_guard`, `stop_claim_guard`, `coverage_audit`).
+- `--high-fidelity` help and docs describe a local evidence-tag/morpheme gate. No Vertex API call.
+
 ### Added — Section 5.1 #3 한국사 사건/조약/학술논문 날조 차단 & Section 5.1 #4 불가능한 사법절차 차단 & Section 7-8 팩트체크 헬스체크 (100점 감사)
 
 - `scripts/verify_legal_factuality.py`:

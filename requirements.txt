@@ -16,6 +16,9 @@ hwp-hwpx-parser>=0.4,<1
 # docling>=2.0
 # unstructured>=0.12
 
+# Optional — Kiwi 형태소 그라운딩 (`--morph-grounding`). 없으면 정규식 폴백으로 정합성 감사 품질이 떨어진다.
+kiwipiepy>=0.20,<1
+
 # Firecrawl AnyDoc — Universal Office & Document to Markdown converter (DOCX, PPTX, XLSX, etc.)
 firecrawl-anydoc>=0.2.4
 

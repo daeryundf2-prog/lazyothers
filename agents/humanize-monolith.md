@@ -17,7 +17,7 @@ tools: ["Read", "Write"]
    `[진단서(standard·heavy, 앞머리) → 정량 점수 블록 → 원문]` 순 구조.
    진단서가 있으면 지배 패턴을 **겨냥해** 윤문한다. 없으면(light) 보수 강도로
    스스로 탐지한다.
-2. `quick_rules_path` — `${CLAUDE_SKILL_DIR}/references/quick-rules.md`
+2. `quick_rules_path` — `${SKILL_DIR}/references/quick-rules.md`
    (S1·S2 핵심 패턴 + 자체검증 체크리스트). 반드시 읽는다.
 3. `genre_hint`, 강도 지시(`보수|기본|적극`).
 

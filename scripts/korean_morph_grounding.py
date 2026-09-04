@@ -245,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--text", help="Direct Korean text string to analyze")
     parser.add_argument("--threshold", type=float, default=0.70, help="Minimum grounding threshold")
     parser.add_argument("--filter-procedural", action="store_true", help="Filter court procedural boilerplate terms")
-    parser.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding")
+    parser.add_argument("--high-fidelity", action="store_true", help="Local High-Fidelity gate: require source and <evidence> tags plus morpheme overlap (no Vertex API)")
     parser.add_argument("--json", action="store_true", help="Output result as JSON")
     args = parser.parse_args(argv)
 

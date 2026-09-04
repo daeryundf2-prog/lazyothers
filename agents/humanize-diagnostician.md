@@ -16,7 +16,7 @@ tools: ["Read", "Glob", "Write"]
 1. `input_path` — `01_input_with_metrics.txt` (정량 점수 블록이 원문 앞에 붙어
    있다). 점수 블록(`00_metrics.json` 내용)은 참고 판단 근거로 읽되, 점수가
    낮다는 이유로 패턴을 무시하지 말고 원문 자체를 1차 근거로 삼는다.
-2. `taxonomy_path` — `${CLAUDE_SKILL_DIR}/references/diagnosis-rules.md`
+2. `taxonomy_path` — `${SKILL_DIR}/references/diagnosis-rules.md`
    (진단 전용 슬림 인덱스, 71패턴 전수). 유일한 패턴 어휘 SSOT다. 이 파일에
    없는 패턴 ID를 지어내지 않는다.
 

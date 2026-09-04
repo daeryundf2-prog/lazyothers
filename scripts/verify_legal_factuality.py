@@ -694,7 +694,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--claim-ledger", help="Optional path to claim-ledger.md for Section 6 verification")
     parser.add_argument("--allow-historical", action="store_true", help="Allow historical abolished ministry citations (warning instead of fatal error)")
     parser.add_argument("--morph-grounding", action="store_true", help="Enforce Kiwi morphological hybrid grounding check against source")
-    parser.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding mode")
+    parser.add_argument("--high-fidelity", action="store_true", help="Local High-Fidelity gate: require --source and <evidence> tags plus morpheme overlap (no Vertex API)")
     parser.add_argument("--json", action="store_true", help="Output JSON results")
     parser.add_argument("--strict", action="store_true", help="Fail on warnings as well")
     args = parser.parse_args(argv)

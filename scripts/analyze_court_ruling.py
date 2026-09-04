@@ -176,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--verify", action="store_true", help="인용 법령 및 판례에 대한 사실성 및 경계값 검증 수행")
     p.add_argument("--source", help="Optional reference source file for grounding verification")
     p.add_argument("--morph-grounding", action="store_true", help="Kiwi morphological grounding check against source")
-    p.add_argument("--high-fidelity", action="store_true", help="Enforce Vertex AI High-Fidelity strict non-parametric grounding")
+    p.add_argument("--high-fidelity", action="store_true", help="Local High-Fidelity gate: require --source and <evidence> tags plus morpheme overlap (no Vertex API)")
     p.add_argument("--strict", action="store_true", help="사실성 검증 실패 시 에러 종료")
     args = p.parse_args(argv)
 
