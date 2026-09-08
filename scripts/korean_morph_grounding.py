@@ -120,17 +120,41 @@ def extract_content_morphemes(text: str, min_len: int = 2) -> list[str]:
         except Exception:
             pass
 
-    # Graceful fallback: regex-based noun extraction stripping common Korean particles
+    # Graceful fallback: regex-based noun extraction stripping common Korean particles and verb endings
+    known_legal = {w for w, _ in LEGAL_DOMAIN_TERMS}
+    predicates = (
+        r"(?:되었습니|되었습니다|되었으며|되었고|되었다|됩니다|된다|되다|"
+        r"하였습니|하였습니다|하였으며|하였고|하였다|하여|합니다|한다|하다|"
+        r"했습니|했습니다|했다|이며|이고|이다|입니다|"
+        r"한|하고|하며|하게|된|되는|된)$"
+    )
     particles = r"(?:은|는|이|가|을|를|의|에|에서|로|으로|와|과|도|만|에게|한테|이나|나|으로서|으로써)$"
     words = re.findall(r"[가-힣a-zA-Z0-9]+", text)
     fallback_tokens = []
     for w in words:
         if re.match(r"^[0-9]+[.)]?$", w):
             continue
+
+        if w in known_legal:
+            fallback_tokens.append(w)
+            continue
+
+        # Strip predicate endings first (e.g. 제출하여 -> 제출, 증명하였다 -> 증명, 송금하였으며 -> 송금)
+        stripped_pred = re.sub(predicates, "", w)
+        if stripped_pred and stripped_pred != w:
+            clean_pred = stripped_pred.rstrip(".,;:-~`!@#$%^&*()[]{}")
+            if len(clean_pred) >= min_len:
+                fallback_tokens.append(clean_pred)
+                continue
+
+        # Strip particles (e.g. 갑호증을 -> 갑호증)
         stripped = re.sub(particles, "", w)
         clean_w = stripped.rstrip(".,;:-~`!@#$%^&*()[]{}")
         if len(clean_w) >= min_len:
             fallback_tokens.append(clean_w)
+            for kw in known_legal:
+                if kw in clean_w and kw != clean_w:
+                    fallback_tokens.append(kw)
     return fallback_tokens
 
 
