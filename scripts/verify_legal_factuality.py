@@ -54,6 +54,34 @@ STATUTE_BOUNDS = {
     "가사소송법": 72,
     "특허법": 232,
     "저작권법": 142,
+    "도로교통법": 205,
+    "의료법": 95,
+}
+
+# Statutes whose "제N조의M" branch articles exist (가지번호 허용 목록).
+# 없는 법/번호의 가지번호 인용은 날조로 차단한다 (예: 민법 제1118조의99).
+STATUTE_SUBARTICLES: dict[str, int] = {
+    "민법": 2,  # 민법 제2조의2까지만 존재
+    "형법": 2,
+    "형사소송법": 6,  # 제200조의2~제200조의6 등
+    "개인정보보호법": 5,
+    "정보통신망법": 0,  # 가지번호 없음
+    "상법": 5,
+    "민사소송법": 6,
+    "행정소송법": 0,
+    "근로기준법": 2,
+    "부정경쟁방지법": 0,
+    "전자문서법": 0,
+    "특정금융정보법": 0,
+    "전자상거래법": 0,
+    "자본시장법": 4,
+    "신용정보법": 0,
+    "소비자기본법": 0,
+    "가사소송법": 0,
+    "특허법": 3,
+    "저작권법": 0,
+    "도로교통법": 24,
+    "의료법": 0,
 }
 
 def _make_statute_pattern(statute_name: str) -> re.Pattern:
@@ -320,6 +348,7 @@ def verify_legal_text(
                 continue
             matched_spans.append(span)
             art_num = int(match.group(1))
+            sub_num = match.group(2)
             full_ref = match.group(0)
             cited_statutes.append(full_ref)
             if art_num < 1 or art_num > max_art:
@@ -327,6 +356,25 @@ def verify_legal_text(
                     f"[{statute_name}] 허위 조문 날조: {full_ref} - "
                     f"현행 {statute_name}은 제1조~제{max_art}조까지만 존재합니다."
                 )
+            elif sub_num is not None:
+                max_sub = STATUTE_SUBARTICLES.get(statute_name, 0)
+                if int(sub_num) > max_sub or int(sub_num) < 1:
+                    errors.append(
+                        f"[{statute_name}] 허위 가지번호 날조: {full_ref} - "
+                        f"현행 {statute_name}의 가지번호(제N조의M)는 최대 '의{max_sub}'까지만 존재합니다."
+                    )
+
+    # 1-1. 미등재 법령 조문 인용: 상한 딕셔너리에 없는 법명 + "제N조" 패턴은
+    # 자동 대조가 불가능한 ungrounded 인용이다. 날조를 놓치지 않도록 경고(WARN).
+    unknown_law_re = re.compile(rf"(?<![가-힣])([가-힣]{{2,15}}법)\s*제\s*\d+\s*조")
+    known_clean = {re.sub(r"\s+", "", name) for name in STATUTE_BOUNDS}
+    for m in unknown_law_re.finditer(text):
+        law_clean = re.sub(r"\s+", "", m.group(1))
+        if law_clean not in known_clean:
+            warnings.append(
+                f"[미등재 법령 인용] '{m.group(0)}' - 상한 검증 대상 법령이 아닙니다. "
+                f"korean_law MCP 등 공식 출처로 조문 존재 여부를 반드시 대조하십시오."
+            )
 
     # 2. Precedent format and year sanity check
     for match in PRECEDENT_RE.finditer(text):
@@ -347,9 +395,9 @@ def verify_legal_text(
             )
 
         if code not in VALID_CASE_CODES:
-            warnings.append(
-                f"[판례 부호 의심] 비표준 사건부호 인용: '{code}' in {case_str} - "
-                f"대법원 규격 사건부호 여부를 확인하십시오."
+            errors.append(
+                f"[판례 부호 날조] 비표준 사건부호 인용: '{code}' in {case_str} - "
+                f"대법원 규격 사건부호가 아니며 존재하지 않는 판례일 가능성이 높습니다."
             )
 
     # 3-1. Fabricated or abolished court names check (Section 5.1 #2)
