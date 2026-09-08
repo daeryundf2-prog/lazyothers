@@ -60,12 +60,15 @@ STATUTE_BOUNDS = {
 
 # Statutes whose "제N조의M" branch articles exist (가지번호 허용 목록).
 # 없는 법/번호의 가지번호 인용은 날조로 차단한다 (예: 민법 제1118조의99).
+# 주의: 상한은 법 개정마다 변한다. 실존 대표 조문(정보통신망법 제44조의7,
+# 개인정보보호법 제32조의2 등)을 차단하지 않도록 실측 상한을 유지할 것.
 STATUTE_SUBARTICLES: dict[str, int] = {
-    "민법": 2,  # 민법 제2조의2까지만 존재
+    "민법": 2,  # 제2조의2까지만 존재
     "형법": 2,
     "형사소송법": 6,  # 제200조의2~제200조의6 등
-    "개인정보보호법": 5,
-    "정보통신망법": 0,  # 가지번호 없음
+    "개인정보보호법": 5,  # 제32조의2 등 존재 (상한 '의2' 오기 정정)
+    "정보통신망법": 7,  # 제44조의2~제44조의7 (명예훼손·도청) 실존
+    "정보통신망 이용촉진 및 정보보호 등에 관한 법률": 7,
     "상법": 5,
     "민사소송법": 6,
     "행정소송법": 0,
@@ -80,7 +83,7 @@ STATUTE_SUBARTICLES: dict[str, int] = {
     "가사소송법": 0,
     "특허법": 3,
     "저작권법": 0,
-    "도로교통법": 24,
+    "도로교통법": 24,  # 제52조의2 등 (실측 상한)
     "의료법": 0,
 }
 
@@ -116,6 +119,10 @@ VALID_CASE_CODES = {
 PRECEDENT_RE = re.compile(
     r"\b(?P<court>대법원|헌법재판소|특허법원|[가-힣]{2,6}가정법원|[가-힣]{2,6}행정법원|[가-힣]{2,6}고등법원|서울중앙지방법원|[가-힣]{2,6}지방법원)?\s*"
     r"(?P<year>\d{4})\s*(?P<code>[가-힣]{1,4})\s*(?P<num>\d+)\b"
+    # 사건부호 판정은 문맥 요건 충족 후보만: 임의 숫자+한글 조합(예:
+    # "2024자연 12345")을 판례로 오탐하는 것을 막는다. 법원명이나
+    # 선고/판결/결정/사건/호 어미가 뒤따를 때만 판례 인용으로 본다.
+    r"(?=(?:\s*(?:선고|판결|결정|사건|호|판시))|\s*$)"
 )
 
 # Standard Korean particle/suffix lookahead for court and agency bounds
@@ -324,13 +331,16 @@ EVIDENCE_TAG_RE = re.compile(r"<evidence(?:\s+[^>]*)?>(.*?)</evidence>", re.DOTA
 
 def verify_legal_text(
     text: str,
-    current_year: int = 2026,
+    current_year: int | None = None,
     source_text: str | None = None,
     morph_grounding: bool = False,
     high_fidelity: bool = False,
     allow_historical: bool = False,
     claim_ledger_path: str | Path | None = None,
 ) -> dict:
+    from datetime import datetime as _dt
+    if current_year is None:
+        current_year = _dt.now().year
     errors: list[str] = []
     warnings: list[str] = []
     cited_statutes: list[str] = []
@@ -572,13 +582,16 @@ def verify_legal_text(
 
 def verify_legal_file(
     file_path: str | Path,
-    current_year: int = 2026,
+    current_year: int | None = None,
     source_path: str | Path | None = None,
     morph_grounding: bool = False,
     high_fidelity: bool = False,
     allow_historical: bool = False,
     claim_ledger_path: str | Path | None = None,
 ) -> dict:
+    from datetime import datetime as _dt
+    if current_year is None:
+        current_year = _dt.now().year
     path = Path(file_path)
     if not path.is_file():
         return {
@@ -641,7 +654,7 @@ def verify_legal_file(
 
 def run_legal_health_check() -> dict:
     """Run comprehensive Section 5.1 & Section 6 legal factuality health check suite.
-    Scores 10 categories (10 points each = 100 points total).
+    Scores 11 categories (10 points each = 110 points total; pass mark 100%).
     Returns health check report with factualityScore and test results.
     """
     tests = [
@@ -703,6 +716,14 @@ def run_legal_health_check() -> dict:
         (
             "evidence_abstention_protocol",
             "<evidence>원문 증거 100만원 대여 사실</evidence> [INSUFFICIENT_DATA] 추가 증거 필요.",
+            lambda r: len(r["errors"]) == 0,
+        ),
+        # 11. Benign regression: real branch articles and everyday number+Hangul
+        #     phrases must not be flagged (review-found false positives)
+        (
+            "benign_real_articles_pass",
+            "정보통신망법 제44조의2 위반 혐의이다. 민법 제2조의2에 따른 신의성실 원칙, "
+            "형사소송법 제453조의2, 도로교통법 제52조의2를 인용한다. 2024학년도 3000명이 지원했다.",
             lambda r: len(r["errors"]) == 0,
         ),
     ]

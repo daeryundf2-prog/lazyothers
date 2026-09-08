@@ -121,6 +121,9 @@ def extract_content_morphemes(text: str, min_len: int = 2) -> list[str]:
             pass
 
     # Graceful fallback: regex-based noun extraction stripping common Korean particles and verb endings
+    # NOTE: 이 폴백 로직은 lazyforensic/scripts/korean_morph_forensic.py 의
+    # extract_forensic_morphemes 폴백과 짝이다. 어미/조사 제거 규칙을 고칠 때
+    # 두 파일을 함께 고칠 것 (동기화 페어).
     known_legal = {w for w, _ in LEGAL_DOMAIN_TERMS}
     predicates = (
         r"(?:되었습니|되었습니다|되었으며|되었고|되었다|됩니다|된다|되다|"
@@ -129,7 +132,8 @@ def extract_content_morphemes(text: str, min_len: int = 2) -> list[str]:
         r"한|하고|하며|하게|된|되는|된)$"
     )
     particles = r"(?:은|는|이|가|을|를|의|에|에서|로|으로|와|과|도|만|에게|한테|이나|나|으로서|으로써)$"
-    words = re.findall(r"[가-힣a-zA-Z0-9]+", text)
+    # 하이픈 결합 토큰도 하나의 단어로 본다 (쌍방 케이스 보존).
+    words = re.findall(r"[가-힣a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*", text)
     fallback_tokens = []
     for w in words:
         if re.match(r"^[0-9]+[.)]?$", w):
