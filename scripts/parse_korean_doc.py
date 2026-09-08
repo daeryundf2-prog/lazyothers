@@ -269,6 +269,24 @@ def parse_anydoc(file_path: str) -> dict:
     """Parse office documents, spreadsheets, presentations, and ebooks via Firecrawl AnyDoc."""
     ext = os.path.splitext(file_path)[1].lower()
     fmt_name = ext[1:].upper()
+    if ext == ".csv":
+        try:
+            import csv
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                rows = [row for row in csv.reader(f) if any(cell.strip() for cell in row)]
+            text_lines = ["\t".join(row) for row in rows]
+            text = "\n".join(text_lines)
+            return {
+                "file_path": file_path,
+                "format": "CSV",
+                "metadata": {"engine": "python-csv"},
+                "sections": [{"name": "body", "text": text}],
+                "tables": [rows] if rows else [],
+                "text": text,
+            }
+        except Exception:
+            pass
+
     try:
         import anydoc
         text = anydoc.to_markdown(file_path)
