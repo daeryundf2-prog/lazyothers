@@ -548,7 +548,7 @@ def test_run_legal_health_check_returns_100_score():
     assert health["status"] == "PASS"
     assert health["score"] == 100
     assert health["passed"] == health["total"]
-    assert len(health["details"]) == 10
+    assert len(health["details"]) == health["total"]
 
 
 def test_cli_health_check():
