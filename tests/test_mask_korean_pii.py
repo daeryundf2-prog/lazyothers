@@ -156,3 +156,26 @@ def test_undecodable_input_fails_closed(tmp_path):
     src = tmp_path / "broken.bin"
     src.write_bytes(b"\x80\x80\x80\x80")  # utf-8 연속 바이트, cp949 리드 바이트 범위 밖
     assert mk.main([str(src), "-o", str(tmp_path / "out.txt")]) == 2
+
+
+# ── PII 확장 3종 (여권/운전면허/외국인등록번호 — 형식매칭+경고 수준) ──
+
+def test_passport_masked_warn_level():
+    masked, stats = mk.mask_text("여권번호 M22000000임을 확인", {"passport"})
+    assert "M22000000" not in masked and "M********임을" in masked
+    assert stats["passport"] == 1
+    assert "passport" in mk.ALL_TYPES
+
+
+def test_driver_license_masked_warn_level():
+    masked, stats = mk.mask_text("면허 12-34-567890-12이다", {"driver_license"})
+    assert "12-34-567890-12" not in masked and "12-34-******-**이다" in masked
+    assert stats["driver_license"] == 1
+    assert "driver_license" in mk.ALL_TYPES
+
+
+def test_foreigner_number_checksum_attempt_but_masked():
+    masked, stats = mk.mask_text("외국인 901212-5678901이다", {"foreigner"})
+    assert "901212-5678901" not in masked and "901212-5******이다" in masked
+    assert stats["foreigner"] == 1
+    assert "foreigner" in mk.ALL_TYPES

@@ -26,8 +26,9 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-# Max article numbers for major Korean codes (as of 2026)
-STATUTE_BOUNDS = {
+# Max article numbers for major Korean codes — data/statute_bounds.json이 SSOT이며
+# 아래는 파일 부재 시 내장 fallback이다. JSON 형태: {"version": "2026.09", "bounds": {...}}
+_STATUTE_BOUNDS_FALLBACK = {
     "민법": 1118,
     "형법": 372,
     "개인정보보호법": 76,
@@ -57,6 +58,22 @@ STATUTE_BOUNDS = {
     "도로교통법": 205,
     "의료법": 95,
 }
+
+
+def _load_statute_bounds() -> dict:
+    try:
+        p = Path(__file__).resolve().parent.parent / "data" / "statute_bounds.json"
+        if p.is_file():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            bounds = data.get("bounds", data) if isinstance(data, dict) else {}
+            if isinstance(bounds, dict) and bounds:
+                return {str(k): int(v) for k, v in bounds.items()}
+    except Exception:
+        pass
+    return dict(_STATUTE_BOUNDS_FALLBACK)
+
+
+STATUTE_BOUNDS = _load_statute_bounds()
 
 # Statutes whose "제N조의M" branch articles exist (가지번호 허용 목록).
 # 없는 법/번호의 가지번호 인용은 날조로 차단한다 (예: 민법 제1118조의99).

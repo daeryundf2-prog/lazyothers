@@ -14,6 +14,7 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 *   **`korean-doc-parser`**: 한컴 오피스 무설치 환경에서 `HWPX`, `HWP 5.0`, `PDF` 본문, 표, 메타데이터 추출. (`scripts/parse_korean_doc.py`)
     *   HWPX(OWPML)는 XML 네임스페이스에 의존하지 않는 로컬 이름 매칭으로 파싱하므로 한컴 버전과 무관하게 동작합니다. 본문 `text`에서 표 셀 내용은 제외되고 `tables`로 별도 제공되어 중복이 없습니다.
     *   HWP 5.0은 `hwp-hwpx-parser` 우선. 미설치/실패 시 OLE 원시 스트림 폴백은 **휴리스틱 추출**이라 깨진 문자가 남고 표/개요 구조는 유실됩니다(결과 JSON `metadata.quality = "rough"`로 표시). 정확한 추출이 필요하면 `pip install hwp-hwpx-parser`.
+    *   휴리스틱 추출(`quality="rough"`)은 기본 경고만 하고 JSON에 `quality` 필드가 항상 포함됩니다. `--strict` 지정 시 `parse_korean_doc.py`는 rough 결과를 exit 2로 거부합니다.
 *   **`court-evidence-stamper`**: 대법원 전자소송(ECFS) 표준 규격 `[갑 제O호증]` / `[을 제O호증]` 증거 표찰 박스 및 Bates 번호 스탬핑, `증거설명서` 자동 생성.
     *   표찰 박스 폭은 라벨 길이에 맞춰 자동 계산되고, `--margin`으로 우측 여백을 조정할 수 있습니다(인장·전송표와 겹칠 때).
     *   증거설명서는 실제 증거 JSON 없이 생성하면 본문 머리/끝에 **"[샘플 자동 생성본 — 법원 제출 금지]"** 워터마크가 들어갑니다.
@@ -50,6 +51,8 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 *   **`xds`** *(manifest-only)*: Astryx XDS 디자인시스템 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/xds/` 스펙만 보관 중 (로드맵)
 
 > MCP 등록: `plugin.json` → `mcp_config.json` 5개 서버 (kordoc/context7/playwright/sequential-thinking + optional korean_law). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
+> 주의: `npm run setup`은 풀설치가 아닙니다. Python 의존성은 `pip install -r requirements.txt`로 별도 설치해야 합니다 (setup 내 pip 시도는 실패해도 경고만 하고 exit 0).
+> 최소 설치가 필요하면 `pip install olefile pymupdf`라도 실행하십시오.
 
 ---
 

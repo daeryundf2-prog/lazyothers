@@ -47,6 +47,17 @@ _RRN_RE = re.compile(
 )
 _RRN_WEIGHTS = (2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5)
 
+# ── 여권 / 운전면허 / 외국인등록번호 (형식매칭+경고 수준) ──────────
+# 여권: M+8자리 (예: M22000000). 운전면허: 2-2-6-2 (예: 12-34-567890-12).
+# 외국인등록번호: RRN과 동일 생년월일+하이픈+성별코드 5~8+6자리. RRN 가중치로
+# 체크섬 검증을 시도하되 실패해도 마스킹한다(틀린 번호≠비개인정보).
+_PASSPORT_RE = re.compile(r"(?<![A-Z0-9])M\d{8}(?!\d)")
+_DRIVER_LICENSE_RE = re.compile(r"(?<!\d)(\d{2})-(\d{2})-(\d{6})-(\d{2})(?!\d)")
+_FOREIGNER_RE = re.compile(
+    r"(?<!\d)(?P<birth>\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))"
+    r"-(?P<sex>[5-8])(?P<rest>\d{6})(?!\d)"
+)
+
 # ── 전화/휴대폰 ─────────────────────────────────────────────────────
 _PHONE_RE = re.compile(r"(?<!\d)(02|0[3-6]\d|01[0136789]|070|050\d)-(\d{3,4})-(\d{4})(?!\d)")
 
@@ -75,7 +86,8 @@ def validate_rrn(rrn: str) -> bool:
 
 def mask_text(text: str, types: set[str]) -> tuple[str, dict]:
     """텍스트를 마스킹하고 (마스킹본, 통계)를 반환한다."""
-    stats: dict = {"rrn": 0, "rrn_bad_checksum": 0, "phone": 0, "account": 0, "account_skipped_date": 0, "email": 0}
+    stats: dict = {"rrn": 0, "rrn_bad_checksum": 0, "phone": 0, "account": 0, "account_skipped_date": 0, "email": 0,
+                   "passport": 0, "driver_license": 0, "foreigner": 0, "foreigner_bad_checksum": 0}
 
     def _rrn(m: re.Match) -> str:
         candidate = m.group(0)
@@ -117,10 +129,35 @@ def mask_text(text: str, types: set[str]) -> tuple[str, dict]:
     if "email" in types:
         text = _EMAIL_RE.sub(_email, text)
 
+    def _passport(m: re.Match) -> str:
+        stats["passport"] += 1
+        return "M********"  # 형식매칭+경고 수준: 원번호 미보존
+
+    if "passport" in types:
+        text = _PASSPORT_RE.sub(_passport, text)
+
+    def _driver(m: re.Match) -> str:
+        stats["driver_license"] += 1
+        return f"{m.group(1)}-{m.group(2)}-******-**"
+
+    if "driver_license" in types:
+        text = _DRIVER_LICENSE_RE.sub(_driver, text)
+
+    def _foreigner(m: re.Match) -> str:
+        candidate = m.group(0)
+        stats["foreigner"] += 1
+        if not validate_rrn(candidate):
+            # RRN 동일 가중치 검증 시도 — 실패해도 마스킹(경고 수준)
+            stats["foreigner_bad_checksum"] += 1
+        return f"{m.group('birth')}-{m.group('sex')}******"
+
+    if "foreigner" in types:
+        text = _FOREIGNER_RE.sub(_foreigner, text)
+
     return text, stats
 
 
-ALL_TYPES = {"rrn", "phone", "account", "email"}
+ALL_TYPES = {"rrn", "phone", "account", "email", "passport", "driver_license", "foreigner"}
 
 
 def decode_bytes(raw: bytes) -> tuple[str, str]:
@@ -157,16 +194,19 @@ def render_report(stats: dict, source: str) -> str:
     lines.append(f"- **전화/휴대폰:** {stats['phone']}건")
     lines.append(f"- **계좌번호:** {stats['account']}건 (날짜로 판별해 유지 {stats['account_skipped_date']}건)")
     lines.append(f"- **이메일:** {stats['email']}건")
+    lines.append(f"- **여권(M+8자리):** {stats.get('passport', 0)}건 마스킹 (형식매칭+경고 수준 — 원본 확인 요망)")
+    lines.append(f"- **운전면허(2-2-6-2):** {stats.get('driver_license', 0)}건 마스킹 (형식매칭+경고 수준 — 원본 확인 요망)")
+    lines.append(f"- **외국인등록번호(성별코드 5~8):** {stats.get('foreigner', 0)}건 마스킹 (체크섬 불일치 {stats.get('foreigner_bad_checksum', 0)}건 — 형식만 맞는 값이 포함되어 있을 수 있으니 원본 확인 요망)")
     lines.append("\n> 사람 이름·주소는 이 도구가 탐지하지 못한다. 필요하면 사전 기반 도구(ko-pii 등)를 보강으로 사용하고, 최종 제출본은 사람이 1회 더 훑어야 한다.")
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="한국형 개인정보 자동 마스킹 (주민번호/전화/계좌/이메일)")
+    p = argparse.ArgumentParser(description="한국형 개인정보 자동 마스킹 (주민번호/전화/계좌/이메일/여권/운전면허/외국인번호)")
     p.add_argument("input", help="입력 텍스트/마크다운/CSV 파일")
     p.add_argument("--output", "-o", default="", help="마스킹본 저장 경로 (미지정 시 stdout)")
     p.add_argument("--report", default="", help="처리 결과 리포트 저장 경로 (선택)")
-    p.add_argument("--types", default="rrn,phone,account,email", help="쉼표 구분: rrn,phone,account,email")
+    p.add_argument("--types", default="rrn,phone,account,email,passport,driver_license,foreigner", help="쉼표 구분: rrn,phone,account,email,passport,driver_license,foreigner")
     args = p.parse_args(argv)
 
     types = {t.strip() for t in args.types.split(",") if t.strip()}

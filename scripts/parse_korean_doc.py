@@ -340,10 +340,25 @@ def parse_anydoc(file_path: str) -> dict:
 
 ANYDOC_EXTENSIONS = {
     ".doc", ".docx", ".docm", ".dot", ".dotx",
-    ".ppt", ".pptx", ".pps", ".ppsx", ".pot", ".potx", ".odp",
+    ".ppt", ".pptx", ".pps", ".ppsx", ".pot", ".potx", ".odt",
     ".xls", ".xlsx", ".xlsm", ".xlsb", ".ods", ".csv",
     ".odt", ".rtf", ".epub",
 }
+
+
+def _result_quality(data: dict) -> str:
+    """결과 품질 판정: metadata.quality 또는 최상위 quality가 rough면 rough."""
+    q = str(data.get("quality", "") or data.get("metadata", {}).get("quality", ""))
+    return "rough" if q.startswith("rough") else "clean"
+
+
+def _ensure_quality(data: dict) -> dict:
+    """다운스트림용으로 결과 JSON에 quality 필드가 항상 있도록 보장."""
+    q = _result_quality(data)
+    data.setdefault("quality", q)
+    if isinstance(data.get("metadata"), dict):
+        data["metadata"].setdefault("quality", q)
+    return data
 
 
 def main():
@@ -351,6 +366,8 @@ def main():
     parser.add_argument("input_file", help="입력 파일 (.hwp, .hwpx, .pdf, .docx, .xlsx, .pptx, .csv 등)")
     parser.add_argument("--output", "-o", help="결과 JSON 저장 경로 (미지정시 stdout 출력)")
     parser.add_argument("--markdown", "-m", action="store_true", help="결과를 마크다운 형식으로 출력")
+    parser.add_argument("--strict", action="store_true",
+                        help="HWP OLE 휴리스틱 추출(quality=rough)을 오류(exit 2)로 거부 (기본은 경고 유지)")
 
     args = parser.parse_args()
     file_path = os.path.abspath(args.input_file)
@@ -381,6 +398,13 @@ def main():
     if "error" in data:
         print(f"Error: {data['error']}", file=sys.stderr)
         sys.exit(1)
+
+    _ensure_quality(data)
+    if _result_quality(data) == "rough":
+        if args.strict:
+            print("Error: HWP rough 추출 품질 — --strict 모드에서 거부합니다 (exit 2)", file=sys.stderr)
+            sys.exit(2)
+        print("[WARN] HWP rough 추출 품질 — 휴리스틱 결과이므로 원본 대조 요망", file=sys.stderr)
 
     if args.markdown:
         md_output = f"# Document Content: {os.path.basename(file_path)}\n\n"

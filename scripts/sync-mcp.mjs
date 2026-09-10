@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -74,6 +75,13 @@ try {
   }
 } catch (e) {
   console.warn(`[lazyothers:sync] Could not validate version consistency: ${e.message}`);
+}
+
+// Python deps: python3 있으면 requirements 설치 시도 (실패해도 exit 0 + 경고)
+try {
+  execSync("python3 -m pip install -r requirements.txt", { cwd: pluginRoot, stdio: "inherit", timeout: 120000 });
+} catch {
+  console.warn("[lazyothers:sync] WARN: pip install skipped/failed — run 'pip install -r requirements.txt' manually");
 }
 
 // Optional legacy mirror — skip if target parent does not exist
