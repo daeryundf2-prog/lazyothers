@@ -73,6 +73,43 @@ def _load_statute_bounds() -> dict:
     return dict(_STATUTE_BOUNDS_FALLBACK)
 
 
+def statute_bounds_version() -> str:
+    """data/statute_bounds.json의 버전(YYYY.MM). 없으면 'unknown'."""
+    try:
+        p = Path(__file__).resolve().parent.parent / "data" / "statute_bounds.json"
+        if p.is_file():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("version"):
+                return str(data["version"])
+    except Exception:
+        pass
+    return "unknown"
+
+
+def check_statute_freshness(max_age_months: int = 6) -> str | None:
+    """법상수 버전이 max_age_months보다 오래되면 경고문을 반환, 아니면 None.
+
+    개정 미반영 상한으로 오탐/미탐이 생길 수 있어 주기적 리프레시를 강제한다.
+    """
+    from datetime import datetime
+
+    ver = statute_bounds_version()
+    m = re.match(r"^(\d{4})\.(\d{1,2})$", ver)
+    if not m:
+        return f"[WARN] statute_bounds 버전 불명({ver}) — data/statute_bounds.json을 확인하고 최신 상한으로 갱신하십시오"
+    try:
+        vdate = datetime(int(m.group(1)), int(m.group(2)), 1)
+    except ValueError:
+        return f"[WARN] statute_bounds 버전 형식 오류({ver})"
+    age = (datetime.now().year - vdate.year) * 12 + (datetime.now().month - vdate.month)
+    if age > max_age_months:
+        return (
+            f"[WARN] statute_bounds v{ver}가 {age}개월 경과 — 법 개정으로 상한이 바뀌었을 수 있으니 "
+            f"최신 법령으로 대조 후 data/statute_bounds.json을 갱신하십시오"
+        )
+    return None
+
+
 STATUTE_BOUNDS = _load_statute_bounds()
 
 # Statutes whose "제N조의M" branch articles exist (가지번호 허용 목록).
@@ -799,6 +836,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 2
 
+    fresh_warn = check_statute_freshness()
     result = verify_legal_file(
         args.file,
         source_path=args.source,
@@ -807,6 +845,8 @@ def main(argv: list[str] | None = None) -> int:
         allow_historical=args.allow_historical,
         claim_ledger_path=args.claim_ledger,
     )
+    if fresh_warn:
+        result.setdefault("warnings", []).append(fresh_warn)
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

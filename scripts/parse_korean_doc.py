@@ -340,7 +340,7 @@ def parse_anydoc(file_path: str) -> dict:
 
 ANYDOC_EXTENSIONS = {
     ".doc", ".docx", ".docm", ".dot", ".dotx",
-    ".ppt", ".pptx", ".pps", ".ppsx", ".pot", ".potx", ".odt",
+    ".ppt", ".pptx", ".pps", ".ppsx", ".pot", ".potx", ".odp",
     ".xls", ".xlsx", ".xlsm", ".xlsb", ".ods", ".csv",
     ".odt", ".rtf", ".epub",
 }
@@ -392,7 +392,7 @@ def main():
             print(f"Error: {data['error']}", file=sys.stderr)
             sys.exit(1)
     else:
-        print(f"Unsupported file extension: {ext} (supported: .hwpx, .hwp, .pdf, .docx, .xlsx, .pptx, .csv, .rtf, .odt, .epub)", file=sys.stderr)
+        print(f"Unsupported file extension: {ext} (supported: .hwpx, .hwp, .pdf, .docx, .xlsx, .pptx, .csv, .rtf, .odt, .odp, .epub)", file=sys.stderr)
         sys.exit(1)
 
     if "error" in data:

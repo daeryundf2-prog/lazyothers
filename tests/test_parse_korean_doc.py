@@ -153,3 +153,21 @@ def test_anydoc_markdown_flag_output(tmp_path):
     content = out_path.read_text(encoding="utf-8")
     assert "Document Content: table.csv" in content
     assert "갑 제1호증" in content
+
+
+def test_anydoc_extensions_include_odp_without_duplicate_odt():
+    """회귀: ANYDOC_EXTENSIONS에 .odp가 있어야 하고 .odt 중복이 없어야 한다."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "parse_korean_doc",
+        str(Path(__file__).resolve().parent.parent / "scripts" / "parse_korean_doc.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    exts = mod.ANYDOC_EXTENSIONS
+    assert ".odp" in exts, "ODP(Impress) 누락 회귀"
+    assert ".odt" in exts
+    assert isinstance(exts, set), "중복 방지를 위해 set 유지"
+    # 소스 텍스트상 .odt 리터럴은 정확히 1회만 등장해야 함 (shadowing/중복 방지)
+    src = (Path(__file__).resolve().parent.parent / "scripts" / "parse_korean_doc.py").read_text(encoding="utf-8")
+    assert src.count('".odt"') == 1, "중복 .odt 리터럴 존재"
