@@ -565,6 +565,85 @@ def test_cli_health_check():
     assert data["score"] == 100
 
 
+def test_strict_flag_fails_on_warnings(tmp_path):
+    import subprocess
+    warn_file = tmp_path / "warn_doc.md"
+    # Unregistered statute emits a warning
+    warn_file.write_text("피고는 우주항공보안법 제12조를 위반하였다.", encoding="utf-8")
+
+    # Without --strict: warnings do not fail the process (exit 0)
+    proc_normal = subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "verify_legal_factuality.py"), str(warn_file)],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    assert proc_normal.returncode == 0
+
+    # With --strict: warnings trigger exit code 1
+    proc_strict = subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "verify_legal_factuality.py"), str(warn_file), "--strict"],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    assert proc_strict.returncode == 1
+    assert "Legal warnings" in proc_strict.stderr
+
+
+def test_statute_loaders_resilience_and_warnings(tmp_path):
+    # 1. Missing file resilience
+    missing_file = tmp_path / "nonexistent.json"
+    bounds = vlf._load_statute_bounds(custom_path=missing_file)
+    assert bounds["민법"] == 1118
+    assert any("파일 부재" in w for w in vlf._LOAD_WARNINGS)
+
+    subarticles = vlf._load_statute_subarticles(custom_path=missing_file)
+    assert subarticles["민법"] == 2
+    assert subarticles["도로교통법"] == 24
+
+    # 2. Corrupted JSON resilience
+    corrupt_file = tmp_path / "corrupt.json"
+    corrupt_file.write_text("{broken json", encoding="utf-8")
+    bounds_corrupt = vlf._load_statute_bounds(custom_path=corrupt_file)
+    assert bounds_corrupt["민법"] == 1118
+    assert any("파손" in w for w in vlf._LOAD_WARNINGS)
+
+    # 3. Valid real file loading
+    real_subs = vlf._load_statute_subarticles()
+    assert real_subs["개인정보보호법"] == 5
+    assert real_subs["정보통신망법"] == 7
+    assert real_subs["형사소송법"] == 6
+
+
+def test_mcp_matcher_validation(tmp_path):
+    # 1. match_mcp_statute_cache unit test
+    mcp_cache = {"statute": "우주항공보안법", "articles": ["제12조", "제13조"]}
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", mcp_cache) is True
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제99조", mcp_cache) is False
+
+    # 2. verify_legal_text with mcp_cache suppresses ungrounded warnings
+    text = "피고는 우주항공보안법 제12조를 위반하였다."
+    res_without = vlf.verify_legal_text(text)
+    assert any("우주항공보안법 제12조" in w for w in res_without["warnings"])
+
+    res_with = vlf.verify_legal_text(text, mcp_cache=mcp_cache)
+    assert not any("우주항공보안법 제12조" in w for w in res_with["warnings"])
+
+    # 3. CLI --mcp-cache integration
+    cache_file = tmp_path / "mcp_cache.json"
+    cache_file.write_text(json.dumps(mcp_cache, ensure_ascii=False), encoding="utf-8")
+    doc_file = tmp_path / "doc.md"
+    doc_file.write_text(text, encoding="utf-8")
+
+    import subprocess
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "verify_legal_factuality.py"), str(doc_file), "--mcp-cache", str(cache_file), "--strict"],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    assert proc.returncode == 0
+
+
+
 
 
 

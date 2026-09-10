@@ -60,23 +60,89 @@ _STATUTE_BOUNDS_FALLBACK = {
 }
 
 
-def _load_statute_bounds() -> dict:
+_STATUTE_SUBARTICLES_FALLBACK: dict[str, int] = {
+    "민법": 2,  # 제2조의2까지만 존재
+    "형법": 2,
+    "형사소송법": 6,  # 제200조의2~제200조의6 등
+    "개인정보보호법": 5,  # 제32조의2 등 존재
+    "정보통신망법": 7,  # 제44조의2~제44조의7 (명예훼손·도청) 실존
+    "정보통신망 이용촉진 및 정보보호 등에 관한 법률": 7,
+    "상법": 5,
+    "민사소송법": 6,
+    "행정소송법": 0,
+    "근로기준법": 2,
+    "부정경쟁방지법": 0,
+    "부정경쟁방지 및 영업비밀보호에 관한 법률": 0,
+    "전자문서법": 0,
+    "전자문서 및 전자거래 기본법": 0,
+    "특정금융정보법": 0,
+    "특정 금융거래정보의 보고 및 이용 등에 관한 법률": 0,
+    "전자상거래법": 0,
+    "전자상거래 등에서의 소비자보호에 관한 법률": 0,
+    "자본시장법": 4,
+    "자본시장과 금융투자업에 관한 법률": 4,
+    "신용정보법": 0,
+    "신용정보의 이용 및 보호에 관한 법률": 0,
+    "소비자기본법": 0,
+    "가사소송법": 0,
+    "특허법": 3,
+    "저작권법": 0,
+    "도로교통법": 24,  # 제52조의2 등 (실측 상한)
+    "의료법": 0,
+}
+
+_LOAD_WARNINGS: list[str] = []
+
+
+def _load_statute_bounds(custom_path: Path | None = None) -> dict:
     try:
-        p = Path(__file__).resolve().parent.parent / "data" / "statute_bounds.json"
-        if p.is_file():
-            data = json.loads(p.read_text(encoding="utf-8"))
-            bounds = data.get("bounds", data) if isinstance(data, dict) else {}
-            if isinstance(bounds, dict) and bounds:
-                return {str(k): int(v) for k, v in bounds.items()}
-    except Exception:
-        pass
+        p = custom_path or (Path(__file__).resolve().parent.parent / "data" / "statute_bounds.json")
+        if not p.is_file():
+            _LOAD_WARNINGS.append(f"[WARN] data/statute_bounds.json 파일 부재 — 기본 내장 상한 사용")
+            return dict(_STATUTE_BOUNDS_FALLBACK)
+        data = json.loads(p.read_text(encoding="utf-8"))
+        bounds = data.get("bounds", data) if isinstance(data, dict) else {}
+        if isinstance(bounds, dict) and bounds:
+            return {str(k): int(v) for k, v in bounds.items()}
+        _LOAD_WARNINGS.append(f"[WARN] data/statute_bounds.json 파손(유효 bounds 없음) — 기본 내장 상한 사용")
+    except Exception as exc:
+        _LOAD_WARNINGS.append(f"[WARN] data/statute_bounds.json 파손({exc}) — 기본 내장 상한 사용")
     return dict(_STATUTE_BOUNDS_FALLBACK)
+
+
+def _load_statute_subarticles(custom_path: Path | None = None) -> dict:
+    try:
+        p = custom_path or (Path(__file__).resolve().parent.parent / "data" / "statute_subarticles.json")
+        if not p.is_file():
+            _LOAD_WARNINGS.append(f"[WARN] data/statute_subarticles.json 파일 부재 — 기본 내장 가지번호 상한 사용")
+            return dict(_STATUTE_SUBARTICLES_FALLBACK)
+        data = json.loads(p.read_text(encoding="utf-8"))
+        subs = data.get("subarticles", data) if isinstance(data, dict) else {}
+        if isinstance(subs, dict) and subs:
+            return {str(k): int(v) for k, v in subs.items()}
+        _LOAD_WARNINGS.append(f"[WARN] data/statute_subarticles.json 파손(유효 subarticles 없음) — 기본 내장 가지번호 상한 사용")
+    except Exception as exc:
+        _LOAD_WARNINGS.append(f"[WARN] data/statute_subarticles.json 파손({exc}) — 기본 내장 가지번호 상한 사용")
+    return dict(_STATUTE_SUBARTICLES_FALLBACK)
 
 
 def statute_bounds_version() -> str:
     """data/statute_bounds.json의 버전(YYYY.MM). 없으면 'unknown'."""
     try:
         p = Path(__file__).resolve().parent.parent / "data" / "statute_bounds.json"
+        if p.is_file():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("version"):
+                return str(data["version"])
+    except Exception:
+        pass
+    return "unknown"
+
+
+def statute_subarticles_version() -> str:
+    """data/statute_subarticles.json의 버전(YYYY.MM). 없으면 'unknown'."""
+    try:
+        p = Path(__file__).resolve().parent.parent / "data" / "statute_subarticles.json"
         if p.is_file():
             data = json.loads(p.read_text(encoding="utf-8"))
             if isinstance(data, dict) and data.get("version"):
@@ -111,35 +177,37 @@ def check_statute_freshness(max_age_months: int = 6) -> str | None:
 
 
 STATUTE_BOUNDS = _load_statute_bounds()
+STATUTE_SUBARTICLES = _load_statute_subarticles()
 
-# Statutes whose "제N조의M" branch articles exist (가지번호 허용 목록).
-# 없는 법/번호의 가지번호 인용은 날조로 차단한다 (예: 민법 제1118조의99).
-# 주의: 상한은 법 개정마다 변한다. 실존 대표 조문(정보통신망법 제44조의7,
-# 개인정보보호법 제32조의2 등)을 차단하지 않도록 실측 상한을 유지할 것.
-STATUTE_SUBARTICLES: dict[str, int] = {
-    "민법": 2,  # 제2조의2까지만 존재
-    "형법": 2,
-    "형사소송법": 6,  # 제200조의2~제200조의6 등
-    "개인정보보호법": 5,  # 제32조의2 등 존재 (상한 '의2' 오기 정정)
-    "정보통신망법": 7,  # 제44조의2~제44조의7 (명예훼손·도청) 실존
-    "정보통신망 이용촉진 및 정보보호 등에 관한 법률": 7,
-    "상법": 5,
-    "민사소송법": 6,
-    "행정소송법": 0,
-    "근로기준법": 2,
-    "부정경쟁방지법": 0,
-    "전자문서법": 0,
-    "특정금융정보법": 0,
-    "전자상거래법": 0,
-    "자본시장법": 4,
-    "신용정보법": 0,
-    "소비자기본법": 0,
-    "가사소송법": 0,
-    "특허법": 3,
-    "저작권법": 0,
-    "도로교통법": 24,  # 제52조의2 등 (실측 상한)
-    "의료법": 0,
-}
+
+def match_mcp_statute_cache(citation: str, mcp_cache: dict | list | str | None) -> bool:
+    """korean_law MCP 응답 캐시 또는 데이터 구조에서 특정 조문/법령 인용이 실존하는지 매칭한다."""
+    if not mcp_cache:
+        return False
+    if isinstance(mcp_cache, str):
+        try:
+            p = Path(mcp_cache)
+            if p.is_file():
+                mcp_cache = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+            else:
+                mcp_cache = json.loads(mcp_cache)
+        except Exception:
+            return citation in str(mcp_cache)
+
+    cache_str = json.dumps(mcp_cache, ensure_ascii=False) if isinstance(mcp_cache, (dict, list)) else str(mcp_cache)
+    clean_citation = re.sub(r"\s+", "", citation)
+    clean_cache = re.sub(r"\s+", "", cache_str)
+    if clean_citation in clean_cache:
+        return True
+
+    # 법명과 조문 번호가 분리되어 저장된 JSON 구조(statute/articles 등) 대응
+    m = re.match(r"^([가-힣\s]+?)(제\s*\d+\s*(?:조(?:의\s*\d+)?))", citation)
+    if m:
+        statute_part = re.sub(r"\s+", "", m.group(1))
+        art_part = re.sub(r"\s+", "", m.group(2))
+        if statute_part in clean_cache and art_part in clean_cache:
+            return True
+    return False
 
 def _make_statute_pattern(statute_name: str) -> re.Pattern:
     clean_name = re.sub(r"\s+", "", statute_name)
@@ -391,12 +459,13 @@ def verify_legal_text(
     high_fidelity: bool = False,
     allow_historical: bool = False,
     claim_ledger_path: str | Path | None = None,
+    mcp_cache: str | Path | dict | list | None = None,
 ) -> dict:
     from datetime import datetime as _dt
     if current_year is None:
         current_year = _dt.now().year
     errors: list[str] = []
-    warnings: list[str] = []
+    warnings: list[str] = list(_LOAD_WARNINGS)
     cited_statutes: list[str] = []
     cited_precedents: list[str] = []
 
@@ -430,13 +499,17 @@ def verify_legal_text(
 
     # 1-1. 미등재 법령 조문 인용: 상한 딕셔너리에 없는 법명 + "제N조" 패턴은
     # 자동 대조가 불가능한 ungrounded 인용이다. 날조를 놓치지 않도록 경고(WARN).
+    # 단, mcp_cache에 해당 조문이 존재하는 경우 경고를 해제한다.
     unknown_law_re = re.compile(rf"(?<![가-힣])([가-힣]{{2,15}}법)\s*제\s*\d+\s*조")
     known_clean = {re.sub(r"\s+", "", name) for name in STATUTE_BOUNDS}
     for m in unknown_law_re.finditer(text):
         law_clean = re.sub(r"\s+", "", m.group(1))
         if law_clean not in known_clean:
+            ref_str = m.group(0)
+            if mcp_cache and match_mcp_statute_cache(ref_str, mcp_cache):
+                continue
             warnings.append(
-                f"[미등재 법령 인용] '{m.group(0)}' - 상한 검증 대상 법령이 아닙니다. "
+                f"[미등재 법령 인용] '{ref_str}' - 상한 검증 대상 법령이 아닙니다. "
                 f"korean_law MCP 등 공식 출처로 조문 존재 여부를 반드시 대조하십시오."
             )
 
@@ -642,6 +715,7 @@ def verify_legal_file(
     high_fidelity: bool = False,
     allow_historical: bool = False,
     claim_ledger_path: str | Path | None = None,
+    mcp_cache: str | Path | dict | list | None = None,
 ) -> dict:
     from datetime import datetime as _dt
     if current_year is None:
@@ -673,6 +747,8 @@ def verify_legal_file(
         morph_grounding=morph_grounding,
         high_fidelity=high_fidelity,
         allow_historical=allow_historical,
+        claim_ledger_path=claim_ledger_path,
+        mcp_cache=mcp_cache,
     )
 
     # Section 6 Claim Ledger integration
@@ -815,6 +891,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--health-check", action="store_true", help="Run comprehensive Section 5.1 & Section 6 legal factuality health check suite")
     parser.add_argument("--source", help="Optional path to source evidence/facts for grounding check")
     parser.add_argument("--claim-ledger", help="Optional path to claim-ledger.md for Section 6 verification")
+    parser.add_argument("--mcp-cache", help="Optional path to korean_law MCP response JSON cache for corroboration")
     parser.add_argument("--allow-historical", action="store_true", help="Allow historical abolished ministry citations (warning instead of fatal error)")
     parser.add_argument("--morph-grounding", action="store_true", help="Enforce Kiwi morphological hybrid grounding check against source")
     parser.add_argument("--high-fidelity", action="store_true", help="Local High-Fidelity gate: require --source and <evidence> tags plus morpheme overlap (no Vertex API)")
@@ -844,6 +921,7 @@ def main(argv: list[str] | None = None) -> int:
         high_fidelity=args.high_fidelity,
         allow_historical=args.allow_historical,
         claim_ledger_path=args.claim_ledger,
+        mcp_cache=args.mcp_cache,
     )
     if fresh_warn:
         result.setdefault("warnings", []).append(fresh_warn)
