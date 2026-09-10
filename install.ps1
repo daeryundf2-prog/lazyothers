@@ -13,6 +13,8 @@ $originalLocation = Get-Location
 Set-Location $pluginDir
 
 # 1. Git Repositories Clone or Pull
+# NOTE: 저장소명이 lazyforensic-/lazyagentic- (末尾 하이픈) 이므로 URL 하이픈은 오타가 아님.
+# 클론 목적지는 하이픈 없는 이름 사용 (plugin.json과 일치).
 $repos = @{
     "lazyantigravity" = "https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git"
     "lazyforensic"    = "https://github.com/daeryundf2-prog/lazyforensic-.git"

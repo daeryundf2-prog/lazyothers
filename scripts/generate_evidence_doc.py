@@ -112,6 +112,7 @@ def main(argv=None):
     parser.add_argument("--case-num", default="202X가합XXXX호", help="사건번호")
     parser.add_argument("--case-name", default="영업비밀침해금지 등 청구의 소", help="사건명")
     parser.add_argument("--court", default="서울중앙지방법원", help="관할 법원")
+    parser.add_argument("--allow-sample", action="store_true", help="실제 증거 없이 샘플 플레이스홀더 생성을 명시적으로 허용 (없으면 exit 2로 거부)")
 
     args = parser.parse_args(argv)
 
@@ -152,10 +153,15 @@ def main(argv=None):
     using_sample = False
     if not evidence_list:
         using_sample = True
+        if not args.allow_sample:
+            print("[!] Refusing to generate sample placeholder without --allow-sample. Pass --allow-sample to explicitly opt in (output will carry a submission-ban watermark).", file=sys.stderr)
+            sys.exit(2)
         if args.input_json:
             print("[WARN] evidence_list is empty — generating sample placeholder. DO NOT submit as-is.", file=sys.stderr)
         else:
             print("[WARN] --input-json not provided — generating sample placeholder. Provide real evidence JSON before submission.", file=sys.stderr)
+        if "_SAMPLE_" not in args.output and "SAMPLE" not in args.output and "샘플" not in args.output:
+            print("[WARN] Sample output filename should contain _SAMPLE_ to prevent accidental court submission.", file=sys.stderr)
         evidence_list = [
             {
                 "label": "갑 제1호증의 1",

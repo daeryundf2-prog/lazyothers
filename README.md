@@ -14,7 +14,7 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 *   **`korean-doc-parser`**: 한컴 오피스 무설치 환경에서 `HWPX`, `HWP 5.0`, `PDF` 본문, 표, 메타데이터 추출. (`scripts/parse_korean_doc.py`)
     *   HWPX(OWPML)는 XML 네임스페이스에 의존하지 않는 로컬 이름 매칭으로 파싱하므로 한컴 버전과 무관하게 동작합니다. 본문 `text`에서 표 셀 내용은 제외되고 `tables`로 별도 제공되어 중복이 없습니다.
     *   HWP 5.0은 `hwp-hwpx-parser` 우선. 미설치/실패 시 OLE 원시 스트림 폴백은 **휴리스틱 추출**이라 깨진 문자가 남고 표/개요 구조는 유실됩니다(결과 JSON `metadata.quality = "rough"`로 표시). 정확한 추출이 필요하면 `pip install hwp-hwpx-parser`.
-*   **`court-evidence-stiper`**: 대법원 전자소송(ECFS) 표준 규격 `[갑 제O호증]` / `[을 제O호증]` 증거 표찰 박스 및 Bates 번호 스탬핑, `증거설명서` 자동 생성.
+*   **`court-evidence-stamper`**: 대법원 전자소송(ECFS) 표준 규격 `[갑 제O호증]` / `[을 제O호증]` 증거 표찰 박스 및 Bates 번호 스탬핑, `증거설명서` 자동 생성.
     *   표찰 박스 폭은 라벨 길이에 맞춰 자동 계산되고, `--margin`으로 우측 여백을 조정할 수 있습니다(인장·전송표와 겹칠 때).
     *   증거설명서는 실제 증거 JSON 없이 생성하면 본문 머리/끝에 **"[샘플 자동 생성본 — 법원 제출 금지]"** 워터마크가 들어갑니다.
 *   **`legal-case-search`**: 국가법령정보센터 Open API 및 대법원 판례 시맨틱 검색. (`lazyforensic` 플러그인 설치 시 활성화, optional)
@@ -34,6 +34,8 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 
 ### 5. 개발자 자원 및 트렌드 허브 (Developer Resources Hub)
 *   **`developer-resources`**: 개발자를 위한 4대 자원 디렉터리(`free-for-dev`, `public-apis.io`, `daily-dev`, `devresourc.es`) 통합 검색 및 추천 스킬. (`scripts/query_dev_resources.py`)
+*   **`convert-documents-to-markdown`**: Office 문서 범용 Markdown 변환 스킬.
+*   **`diagram-design`**: Mermaid/다이어그램 설계 스킬.
     *   **free-for-dev**: 무료 PaaS/SaaS, Cloud Hosting(Vercel/Netlify/Render/Cloudflare), Database(Supabase/Neon/Turso/Upstash), Auth(Clerk), Email(Resend), AI(Groq)
     *   **public-apis.io**: 공개 API 카테고리별 검증 목록 (Auth 타입, HTTPS, CORS 지원 표기)
     *   **daily-dev**: 트렌딩 오픈소스, GitHub Trending, 기술 블로그 및 개발 뉴스 피드
@@ -69,10 +71,12 @@ python scripts/parse_korean_doc.py "계약서.hwp" --output parsed.json
 python scripts/parse_korean_doc.py "판결문.pdf" --markdown --output parsed.md
 
 # 3. 대법원 전자소송 서증 표찰 스탬핑 (기본: 전 페이지 표찰 + Bates 번호)
+# 한글 폰트 없으면 기본 거부됨. 깨짐 감수 시 --allow-broken-font 명시.
 python scripts/stamp_evidence.py "증거.pdf" --output "갑제1호증_증거.pdf" --label "갑 제1호증"
 python scripts/stamp_evidence.py "증거.pdf" --output "갑제1호증_증거.pdf" --label "갑 제1호증" --first-only  # 첫 페이지만
 
 # 4. 증거설명서 마크다운 생성 (파일 경로의 전체 SHA-256 자동 기재)
+# 실제 증거 없이 샘플 생성 시 --allow-sample 필수 + 파일명에 _SAMPLE_ 권장.
 python scripts/generate_evidence_doc.py --input-json evidence.json --output "증거설명서.md" --case-num "2024가합12345"
 ```
 
@@ -91,7 +95,7 @@ bash install.sh
 ## 요구사항
 
 - Python >=3.8, Node.js >=18
-- 한글 표찰 폰트: 시스템 폰트를 자동 탐색합니다 (macOS AppleSDGothicNeo / Windows 맑은고딕 / Linux NanumGothic). 해당 폰트가 없으면 `scripts/NotoSansKR-Regular.ttf` 또는 `.otf`를 배치하세요. 폰트가 전혀 없으면 한글이 깨질 수 있습니다.
+- 한글 표찰 폰트: 시스템 폰트를 자동 탐색합니다 (macOS AppleSDGothicNeo / Windows 맑은고딕 / Linux NanumGothic). 해당 폰트가 없으면 `scripts/NotoSansKR-Regular.ttf` 또는 `.otf`를 배치하세요. 폰트가 전혀 없으면 `stamp_evidence.py`는 exit 1로 거부됩니다 (`--allow-broken-font` 명시 시에만 깨짐 감수 출력).
 
 ## 🧪 테스트
 

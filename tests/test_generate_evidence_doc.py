@@ -64,11 +64,22 @@ def test_explicit_sha256_respected(tmp_path):
 
 def test_sample_generation_carries_submission_ban_watermark(tmp_path):
     """회귀: 실제 증거 JSON 없이 생성하면 본문에 제출 금지 워터마크가 들어가야 한다."""
-    output = tmp_path / "증거설명서.md"
-    ged.main(["--output", str(output)])
+    output = tmp_path / "증거설명서_SAMPLE_.md"
+    ged.main(["--output", str(output), "--allow-sample"])
     md = output.read_text(encoding="utf-8")
     assert "법원 제출 금지" in md, "샘플 문서에 워터마크 배너가 없음"
     assert "[SAMPLE]" in md
+
+
+def test_sample_without_flag_is_refused(tmp_path):
+    """--allow-sample 없이는 샘플 생성을 거부해야 한다 (exit 2)."""
+    import pytest as _pytest
+
+    output = tmp_path / "증거설명서.md"
+    with _pytest.raises(SystemExit) as exc:
+        ged.main(["--output", str(output)])
+    assert exc.value.code == 2
+    assert not output.exists()
 
 
 def test_real_input_has_no_watermark(tmp_path):
@@ -88,7 +99,7 @@ def test_malformed_json_falls_back_to_sample_instead_of_crash(tmp_path):
     """회귀: JSON 파싱 실패 시 트레이스백 크래시 대신 샘플+워터마크로 진행한다."""
     input_json = tmp_path / "broken.json"
     input_json.write_text("{ not valid json !!", encoding="utf-8")
-    output = tmp_path / "증거설명서.md"
-    ged.main(["--input-json", str(input_json), "--output", str(output)])
+    output = tmp_path / "증거설명서_SAMPLE_.md"
+    ged.main(["--input-json", str(input_json), "--output", str(output), "--allow-sample"])
     md = output.read_text(encoding="utf-8")
     assert "법원 제출 금지" in md

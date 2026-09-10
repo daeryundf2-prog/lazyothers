@@ -34,7 +34,7 @@ def _label_box_width(label: str, fontsize: float = 11.0, min_width: float = 110.
     return max(min_width, em * fontsize + 18.0)
 
 
-def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True, right_margin: float = 25.0):
+def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True, right_margin: float = 25.0, allow_broken_font: bool = False):
     """PyMuPDF(fitz)를 활용한 고품질 서증 라벨 및 Bates 번호 인자"""
     try:
         import fitz  # PyMuPDF
@@ -71,6 +71,10 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
         print(f"[*] Using Korean font: {korean_font_path}")
     else:
         print("[WARN] No Korean font found — Hangul in label may render as boxes. Place NotoSansKR-Regular.ttf next to script.", file=sys.stderr)
+        if not allow_broken_font:
+            print("[!] Refusing to stamp without a Korean font (Hangul would break). Install a font (macOS AppleSDGothicNeo / Windows malgun / Linux NanumGothic) or re-run with --allow-broken-font to explicitly opt in to broken output.", file=sys.stderr)
+            doc.close()
+            return False
 
     for idx, page in enumerate(doc):
         current_page_num = start_page + idx
@@ -150,6 +154,7 @@ def main():
     parser.add_argument("--start", "-s", type=int, default=1, help="시작 페이지 번호 (기본: 1)")
     parser.add_argument("--first-only", action="store_true", help="첫 페이지만 표찰 (미지정 시 전 페이지 표찰)")
     parser.add_argument("--margin", type=float, default=25.0, help="표찰 박스의 우측 여백(pt, 기본: 25) — 인장·전송표와 겹칠 때 조정")
+    parser.add_argument("--allow-broken-font", action="store_true", help="한글 폰트 없이도 강제 스탬핑 (라벨 깨짐 감수, 법원 제출용에는 사용 금지)")
 
     args = parser.parse_args()
 
@@ -167,6 +172,7 @@ def main():
         start_page=args.start,
         all_pages=all_pages,
         right_margin=args.margin,
+        allow_broken_font=args.allow_broken_font,
     )
 
     if not success:

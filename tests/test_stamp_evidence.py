@@ -55,7 +55,7 @@ def test_stamp_label_is_not_question_marks(tmp_path):
 def test_bates_numbering_all_pages(tmp_path):
     src = _make_pdf(tmp_path / "src.pdf", pages=2)
     out = tmp_path / "bates.pdf"
-    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), LABEL, bates_prefix="P", start_page=1)
+    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), LABEL, bates_prefix="P", start_page=1, allow_broken_font=True)
 
     doc = fitz.open(str(out))
     texts = [_norm(p.get_text()) for p in doc]
@@ -65,6 +65,9 @@ def test_bates_numbering_all_pages(tmp_path):
 
 
 def test_first_only_flag(tmp_path):
+    font = stamp_evidence._get_korean_font()
+    if font is None:
+        pytest.skip("Korean font not available on this machine")
     src = _make_pdf(tmp_path / "src.pdf", pages=2)
     out = tmp_path / "first.pdf"
     assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), LABEL, all_pages=False)
@@ -110,4 +113,4 @@ def test_tiny_page_degrades_gracefully(tmp_path):
     doc.close()
 
     out = tmp_path / "tiny_stamped.pdf"
-    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), "갑 제1호증")
+    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), "갑 제1호증", allow_broken_font=True)

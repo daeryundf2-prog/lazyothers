@@ -1,9 +1,9 @@
 ---
-name: court-evidence-stiper
+name: court-evidence-stamper
 description: "대법원 전자소송(ECFS) 표준 규격 증거 표찰(갑/을 제O호증) 및 Bates 번호 날인, 증거설명서 자동 생성 스킬. Triggers: 증거 표찰, 호증 스탬핑, 갑호증, 을호증, 증거설명서, 전자소송 증거."
 ---
 
-# Court Evidence Stiper & Explanation Generator
+# Court Evidence Stamper & Explanation Generator
 
 대한민국 대법원 전자소송(ECFS) 제출 규격에 부합하도록 증거 PDF 문서에 **[갑 제O호증] / [을 제O호증]** 표찰 박스를 인자하고, 페이지 일련번호(Bates Numbering) 날인 및 **증거설명서(입증취지 + SHA-256 해시 목록)**를 원클릭으로 생성합니다.
 
