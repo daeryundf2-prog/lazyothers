@@ -79,9 +79,9 @@ try {
 
 // Python deps: python3 있으면 requirements 설치 시도 (실패해도 exit 0 + 경고)
 try {
-  execSync("python3 -m pip install -r requirements.txt", { cwd: pluginRoot, stdio: "inherit", timeout: 120000 });
+  execSync("python3 -m pip install -r requirements.txt", { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
 } catch {
-  console.warn("[lazyothers:sync] WARN: pip install skipped/failed — run 'pip install -r requirements.txt' manually");
+  console.warn("[lazyothers:sync] WARN: pip install skipped/failed — run 'pip install -r requirements.txt' manually (미설치 시 파싱 시점에 늦게 발현될 수 있음)");
 }
 
 // Optional legacy mirror — skip if target parent does not exist

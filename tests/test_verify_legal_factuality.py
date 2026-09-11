@@ -643,6 +643,15 @@ def test_mcp_matcher_validation(tmp_path):
     assert proc.returncode == 0
 
 
+def test_statute_loader_corruption_warns_to_stderr(tmp_path, capsys):
+    corrupt = tmp_path / "bounds_corrupt.json"
+    corrupt.write_text("{broken json", encoding="utf-8")
+    bounds = vlf._load_statute_bounds(custom_path=corrupt)
+    assert bounds["민법"] == 1118
+    captured = capsys.readouterr()
+    assert "WARN" in captured.err and "파손" in captured.err
+
+
 
 
 

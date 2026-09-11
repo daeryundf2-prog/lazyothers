@@ -94,19 +94,24 @@ _STATUTE_SUBARTICLES_FALLBACK: dict[str, int] = {
 _LOAD_WARNINGS: list[str] = []
 
 
+def _record_load_warning(msg: str) -> None:
+    _LOAD_WARNINGS.append(msg)
+    print(msg, file=sys.stderr)
+
+
 def _load_statute_bounds(custom_path: Path | None = None) -> dict:
     try:
         p = custom_path or (Path(__file__).resolve().parent.parent / "data" / "statute_bounds.json")
         if not p.is_file():
-            _LOAD_WARNINGS.append(f"[WARN] data/statute_bounds.json 파일 부재 — 기본 내장 상한 사용")
+            _record_load_warning(f"[WARN] data/statute_bounds.json 파일 부재 — 기본 내장 상한 사용")
             return dict(_STATUTE_BOUNDS_FALLBACK)
         data = json.loads(p.read_text(encoding="utf-8"))
         bounds = data.get("bounds", data) if isinstance(data, dict) else {}
         if isinstance(bounds, dict) and bounds:
             return {str(k): int(v) for k, v in bounds.items()}
-        _LOAD_WARNINGS.append(f"[WARN] data/statute_bounds.json 파손(유효 bounds 없음) — 기본 내장 상한 사용")
+        _record_load_warning(f"[WARN] data/statute_bounds.json 파손(유효 bounds 없음) — 기본 내장 상한 사용")
     except Exception as exc:
-        _LOAD_WARNINGS.append(f"[WARN] data/statute_bounds.json 파손({exc}) — 기본 내장 상한 사용")
+        _record_load_warning(f"[WARN] data/statute_bounds.json 파손({exc}) — 기본 내장 상한 사용")
     return dict(_STATUTE_BOUNDS_FALLBACK)
 
 
@@ -114,15 +119,15 @@ def _load_statute_subarticles(custom_path: Path | None = None) -> dict:
     try:
         p = custom_path or (Path(__file__).resolve().parent.parent / "data" / "statute_subarticles.json")
         if not p.is_file():
-            _LOAD_WARNINGS.append(f"[WARN] data/statute_subarticles.json 파일 부재 — 기본 내장 가지번호 상한 사용")
+            _record_load_warning(f"[WARN] data/statute_subarticles.json 파일 부재 — 기본 내장 가지번호 상한 사용")
             return dict(_STATUTE_SUBARTICLES_FALLBACK)
         data = json.loads(p.read_text(encoding="utf-8"))
         subs = data.get("subarticles", data) if isinstance(data, dict) else {}
         if isinstance(subs, dict) and subs:
             return {str(k): int(v) for k, v in subs.items()}
-        _LOAD_WARNINGS.append(f"[WARN] data/statute_subarticles.json 파손(유효 subarticles 없음) — 기본 내장 가지번호 상한 사용")
+        _record_load_warning(f"[WARN] data/statute_subarticles.json 파손(유효 subarticles 없음) — 기본 내장 가지번호 상한 사용")
     except Exception as exc:
-        _LOAD_WARNINGS.append(f"[WARN] data/statute_subarticles.json 파손({exc}) — 기본 내장 가지번호 상한 사용")
+        _record_load_warning(f"[WARN] data/statute_subarticles.json 파손({exc}) — 기본 내장 가지번호 상한 사용")
     return dict(_STATUTE_SUBARTICLES_FALLBACK)
 
 
@@ -924,7 +929,11 @@ def main(argv: list[str] | None = None) -> int:
         mcp_cache=args.mcp_cache,
     )
     if fresh_warn:
-        result.setdefault("warnings", []).append(fresh_warn)
+        if args.strict and "개월 경과" in fresh_warn:
+            result.setdefault("errors", []).append(fresh_warn + " (--strict: FAIL 승격)")
+            result["verdict"] = "FAIL"
+        else:
+            result.setdefault("warnings", []).append(fresh_warn)
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
