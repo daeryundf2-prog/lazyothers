@@ -115,3 +115,5 @@ GitHub Actions CI가 `.github/workflows/ci.yml`에서 push/PR마다 pytest(한�
 - [ ] `kordoc` 고급 기능 검증: `place_seal`, `redact_document`, `generate_document` 등 나머지 툴 실문서 통합 테스트
 - [ ] 스캔본 PDF OCR 연동 (`docling` 등 — `requirements.txt` 주석 참조)
 - [ ] 실제 HWP 5.0 바이너리 샘플 파일 기반 회귀 테스트
+- 법령 상한 수동 대조 기록: `python scripts/check_statute_refresh.py` → `version: 2026.09, entries: 28` (외부망 호출 없음, law.go.kr 직접 대조용)
+- 갱신 후 `python scripts/verify_legal_factuality.py --health-check` 통과 확인 (`statute_bounds.json` + `statute_subarticles.json` 함께 갱신)
