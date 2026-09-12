@@ -9,11 +9,9 @@ ORIGINAL_DIR="$(pwd)"
 cd "${PLUGIN_DIR}"
 
 # "이름 URL" 쌍 목록 (bash 3.2 호환)
-# NOTE: 저장소명이 lazyforensic- (末尾 하이픈) 이므로 URL에 하이픈이 있는 것이 정상.
-# 클론 목적지 디렉터리는 하이픈 없는 lazyforensic 을 사용한다 (plugin.json 이름과 일치).
 PLUGINS="
 lazyantigravity https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git
-lazyforensic    https://github.com/daeryundf2-prog/lazyforensic-.git
+lazyforensic    https://github.com/daeryundf2-prog/lazyforensic.git
 lazyothers      https://github.com/daeryundf2-prog/lazyothers.git
 "
 

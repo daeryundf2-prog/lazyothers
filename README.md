@@ -93,7 +93,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 bash install.sh
 ```
 
-설치 스크립트는 3개 플러그인(`lazyantigravity`, `lazyforensic`, `lazyothers`) 클론/업데이트, korean-law-mcp 빌드, `pip install`, `config.json` 병합까지 수행합니다. (`lazyforensic`은 저장소 URL은 `lazyforensic-.git`이지만 플러그인 디렉터리·plugin.json 이름은 하이픈 없는 `lazyforensic`입니다.)
+설치 스크립트는 3개 플러그인(`lazyantigravity`, `lazyforensic`, `lazyothers`) 클론/업데이트, korean-law-mcp 빌드, `pip install`, `config.json` 병합까지 수행합니다.
 
 ## 요구사항
 
