@@ -117,3 +117,15 @@ GitHub Actions CI가 `.github/workflows/ci.yml`에서 push/PR마다 pytest(한�
 - [ ] 실제 HWP 5.0 바이너리 샘플 파일 기반 회귀 테스트
 - 법령 상한 수동 대조 기록: `python scripts/check_statute_refresh.py` → `version: 2026.09, entries: 28` (외부망 호출 없음, law.go.kr 직접 대조용)
 - 갱신 후 `python scripts/verify_legal_factuality.py --health-check` 통과 확인 (`statute_bounds.json` + `statute_subarticles.json` 함께 갱신)
+
+## Lazy 생태계 (레포 경계)
+
+- `LAZYANTIGRAVITY` — 런타임 우산: 훅 집계·공유 스킬 물질화·번들 MCP 런타임
+- `lazyforensic` — 포렌식/한국법률 도메인 플러그인
+- `lazyothers` (본 레포) — 리걸 문서·HWP·humanize 도메인 플러그인
+- `lazyagentic` — 규칙 전용 거버넌스 플러그인 (Dual-Mount `~/agentic`)
+- [`korean-law-mcp`](https://github.com/daeryundf2-prog/korean-law-mcp) — 한국법 조회 MCP 서버
+  (`scripts/korean_law_mcp_wrapper.mjs`가 sibling 클론을 찾아 실행)
+
+공유 자산: `scripts/coverage_audit.mjs`는 lazyforensic(캐노니컬)·lazyothers·LAZYANTIGRAVITY
+3곳에 바이트 동일 사본으로 유지 — 수정 시 3곳 동기화 필수.
