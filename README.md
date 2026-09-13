@@ -102,6 +102,21 @@ bash install.sh --check   # 설치 없이 현재 환경 진단만
 - 시스템 Python이 externally-managed(PEP 668)면 pip 대신 `lazyothers/.venv`에 설치되고 안내가 출력됩니다.
 - lazyforensic의 선택 의존성(pillow·faster-whisper·sherlock·kiwipiepy)도 `~/.lfenv`에 함께 설치됩니다.
 
+### CLI 래퍼
+
+```bash
+export PATH="$PWD/bin:$PATH"   # 또는 bin/lazyothers를 /usr/local/bin에 링크
+
+lazyothers doc <파일>          # HWP/HWPX/PDF 텍스트 추출
+lazyothers sheet <e.json>      # 증거설명서 (lazyforensic export 출력 호환)
+lazyothers bind <e.json>       # 표찰 PDF 병합 바인더
+lazyothers stamp|pii|ruling|flow|db|integrity|certify|morph|draft ...
+```
+
+래퍼는 `LO_PYTHON` > `lazyothers/.venv` > `~/.lfenv` > 시스템 `python3` 순으로
+인터프리터를 고릅니다 — install.sh가 `.venv` 폴백을 쓴 경우에도 의존성을 찾습니다.
+스킬 없이 터미널에서 스크립트를 직접 부를 때 사용하세요.
+
 ## 요구사항
 
 - Python >=3.8, Node.js >=18
