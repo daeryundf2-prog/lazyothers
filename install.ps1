@@ -1,11 +1,51 @@
 # Antigravity 3대 플러그인 원클릭 완전 자동 설치 스크립트
+param(
+    [switch]$Check
+)
 $ErrorActionPreference = "Stop"
+
+$pluginDir = "$HOME\.gemini\config\plugins"
+
+if ($Check) {
+    Write-Host "== 환경 진단 (설치하지 않음) ==" -ForegroundColor Cyan
+    $repos = @("lazyantigravity", "lazyforensic", "lazyothers")
+    foreach ($name in $repos) {
+        $p = Join-Path $pluginDir $name
+        if (Test-Path (Join-Path $p ".git")) {
+            $hash = (git -C $p rev-parse --short HEAD 2>$null)
+            Write-Host "  [OK] plugin $name ($hash)" -ForegroundColor Green
+        } else {
+            Write-Host "  [FAIL] plugin $name - 미설치" -ForegroundColor Red
+        }
+    }
+    foreach ($tool in @("git", "node", "npm", "python")) {
+        if (Get-Command $tool -ErrorAction SilentlyContinue) {
+            $ver = (& $tool --version 2>$null | Select-Object -First 1)
+            Write-Host "  [OK] $tool ($ver)" -ForegroundColor Green
+        } else {
+            Write-Host "  [FAIL] $tool - 미설치" -ForegroundColor Red
+        }
+    }
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        $py = "python"
+        $venvPy = Join-Path $pluginDir "lazyothers\.venv\Scripts\python.exe"
+        if (Test-Path $venvPy) { $py = $venvPy }
+        foreach ($mod in @("fitz", "olefile", "openpyxl", "kiwipiepy", "firecrawl_anydoc")) {
+            & $py -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  [OK] python module $mod" -ForegroundColor Green
+            } else {
+                Write-Host "  [FAIL] python module $mod" -ForegroundColor Red
+            }
+        }
+    }
+    exit 0
+}
 
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "  Antigravity Complete Setup Auto-Installer" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
-$pluginDir = "$HOME\.gemini\config\plugins"
 if (!(Test-Path $pluginDir)) {
     New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
 }

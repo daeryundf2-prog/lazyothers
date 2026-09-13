@@ -28,8 +28,12 @@ if [ "${1:-}" = "--check" ]; then
     fi
   done
   if command -v python3 >/dev/null 2>&1; then
+    PY="python3"
+    if [ -x "${PLUGIN_DIR}/lazyothers/.venv/bin/python" ]; then
+      PY="${PLUGIN_DIR}/lazyothers/.venv/bin/python"
+    fi
     for mod in fitz olefile openpyxl kiwipiepy firecrawl_anydoc; do
-      python3 -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null \
+      "$PY" -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null \
         && echo "  ✅ python module ${mod}" || echo "  ❌ python module ${mod}"
     done
   fi
