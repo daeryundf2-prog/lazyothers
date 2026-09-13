@@ -157,27 +157,39 @@ def statute_subarticles_version() -> str:
     return "unknown"
 
 
-def check_statute_freshness(max_age_months: int = 6) -> str | None:
-    """법상수 버전이 max_age_months보다 오래되면 경고문을 반환, 아니면 None.
-
-    개정 미반영 상한으로 오탐/미탐이 생길 수 있어 주기적 리프레시를 강제한다.
-    """
+def _check_version_freshness(label: str, version_fn, datafile: str, max_age_months: int) -> str | None:
     from datetime import datetime
 
-    ver = statute_bounds_version()
+    ver = version_fn()
     m = re.match(r"^(\d{4})\.(\d{1,2})$", ver)
     if not m:
-        return f"[WARN] statute_bounds 버전 불명({ver}) — data/statute_bounds.json을 확인하고 최신 상한으로 갱신하십시오"
+        return f"[WARN] {label} 버전 불명({ver}) — {datafile}을 확인하고 최신 상한으로 갱신하십시오"
     try:
         vdate = datetime(int(m.group(1)), int(m.group(2)), 1)
     except ValueError:
-        return f"[WARN] statute_bounds 버전 형식 오류({ver})"
+        return f"[WARN] {label} 버전 형식 오류({ver})"
     age = (datetime.now().year - vdate.year) * 12 + (datetime.now().month - vdate.month)
     if age > max_age_months:
         return (
-            f"[WARN] statute_bounds v{ver}가 {age}개월 경과 — 법 개정으로 상한이 바뀌었을 수 있으니 "
-            f"최신 법령으로 대조 후 data/statute_bounds.json을 갱신하십시오"
+            f"[WARN] {label} v{ver}가 {age}개월 경과 — 법 개정으로 상한이 바뀌었을 수 있으니 "
+            f"최신 법령으로 대조 후 {datafile}을 갱신하십시오"
         )
+    return None
+
+
+def check_statute_freshness(max_age_months: int = 6) -> str | None:
+    """법상수/가지번호 데이터 버전이 max_age_months보다 오래되면 경고문을 반환, 아니면 None.
+
+    개정 미반영 상한으로 오탐/미탐이 생길 수 있어 주기적 리프레시를 강제한다.
+    bounds와 subarticles 중 먼저 만료된 쪽의 경고를 반환한다.
+    """
+    for label, fn, df in (
+        ("statute_bounds", statute_bounds_version, "data/statute_bounds.json"),
+        ("statute_subarticles", statute_subarticles_version, "data/statute_subarticles.json"),
+    ):
+        warn = _check_version_freshness(label, fn, df, max_age_months)
+        if warn:
+            return warn
     return None
 
 
