@@ -127,14 +127,38 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     Write-Host "Installing Python dependencies for lazyothers..." -ForegroundColor Green
     Push-Location "$pluginDir\lazyothers"
     try {
-        python -m pip install -r requirements.txt
+        python -m pip install -r requirements.txt 2>$null
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "  [!] pip install failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            # PEP 668(externally-managed) 등으로 시스템 설치가 거부되면 .venv로 폴백
+            Write-Host "  [i] system pip 실패 — .venv로 폴백" -ForegroundColor Yellow
+            python -m venv .venv
+            & .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  [i] .venv\Scripts\python.exe 로 스크립트를 실행하세요" -ForegroundColor Yellow
+            } else {
+                Write-Host "  [!] pip install failed (exit $LASTEXITCODE)" -ForegroundColor Red
+            }
         }
     } catch {
         Write-Host "  [!] pip install failed: $_" -ForegroundColor Red
     } finally {
         Pop-Location
+    }
+
+    # 3.7 lazyforensic 선택 의존성 (~/.lfenv) — 실패해도 계속
+    if (Test-Path "$pluginDir\lazyforensic\scripts\setup_forensic_env.py") {
+        Write-Host "Installing lazyforensic optional deps (~/.lfenv)..." -ForegroundColor Green
+        Push-Location "$pluginDir\lazyforensic"
+        try {
+            python scripts\setup_forensic_env.py
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [!] lazyforensic env setup 실패 (exit $LASTEXITCODE)" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "  [!] lazyforensic setup failed: $_" -ForegroundColor Red
+        } finally {
+            Pop-Location
+        }
     }
 } else {
     Write-Host "[!] python not found, skipping pip install" -ForegroundColor Yellow

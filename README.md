@@ -95,6 +95,13 @@ bash install.sh
 
 설치 스크립트는 3개 플러그인(`lazyantigravity`, `lazyforensic`, `lazyothers`) 클론/업데이트, korean-law-mcp 빌드, `pip install`, `config.json` 병합까지 수행합니다.
 
+```bash
+bash install.sh --check   # 설치 없이 현재 환경 진단만
+```
+
+- 시스템 Python이 externally-managed(PEP 668)면 pip 대신 `lazyothers/.venv`에 설치되고 안내가 출력됩니다.
+- lazyforensic의 선택 의존성(pillow·faster-whisper·sherlock·kiwipiepy)도 `~/.lfenv`에 함께 설치됩니다.
+
 ## 요구사항
 
 - Python >=3.8, Node.js >=18
