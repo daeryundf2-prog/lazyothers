@@ -33,7 +33,7 @@ if [ "${1:-}" = "--check" ]; then
     if [ -x "${PLUGIN_DIR}/lazyothers/.venv/bin/python" ]; then
       PY="${PLUGIN_DIR}/lazyothers/.venv/bin/python"
     fi
-    for mod in fitz olefile openpyxl kiwipiepy firecrawl_anydoc; do
+    for mod in fitz olefile openpyxl kiwipiepy anydoc; do
       if "$PY" -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null; then
         echo "  ✅ python module ${mod}"
       else

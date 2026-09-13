@@ -36,12 +36,9 @@ def _label_box_width(label: str, fontsize: float = 11.0, min_width: float = 110.
 
 def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True, right_margin: float = 25.0, allow_broken_font: bool = False):
     """PyMuPDF(fitz)를 활용한 고품질 서증 라벨 및 Bates 번호 인자"""
-    try:
-        from dep_help import require
-        require("fitz")
-        import fitz  # PyMuPDF
-    except SystemExit:
-        return False
+    from dep_help import require
+    require("fitz")  # 미설치 시 설치 안내 + exit 3 — except로 삼키지 않는다
+    import fitz  # PyMuPDF
 
     # Ensure output directory exists
     out_dir = os.path.dirname(os.path.abspath(output_pdf))

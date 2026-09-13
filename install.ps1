@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 $pluginDir = "$HOME\.gemini\config\plugins"
 
 if ($Check) {
+    $checkFail = 0
     Write-Host "== 환경 진단 (설치하지 않음) ==" -ForegroundColor Cyan
     $repos = @("lazyantigravity", "lazyforensic", "lazyothers")
     foreach ($name in $repos) {
@@ -16,6 +17,7 @@ if ($Check) {
             Write-Host "  [OK] plugin $name ($hash)" -ForegroundColor Green
         } else {
             Write-Host "  [FAIL] plugin $name - 미설치" -ForegroundColor Red
+            $checkFail = 1
         }
     }
     foreach ($tool in @("git", "node", "npm", "python")) {
@@ -24,22 +26,24 @@ if ($Check) {
             Write-Host "  [OK] $tool ($ver)" -ForegroundColor Green
         } else {
             Write-Host "  [FAIL] $tool - 미설치" -ForegroundColor Red
+            $checkFail = 1
         }
     }
     if (Get-Command python -ErrorAction SilentlyContinue) {
         $py = "python"
         $venvPy = Join-Path $pluginDir "lazyothers\.venv\Scripts\python.exe"
         if (Test-Path $venvPy) { $py = $venvPy }
-        foreach ($mod in @("fitz", "olefile", "openpyxl", "kiwipiepy", "firecrawl_anydoc")) {
+        foreach ($mod in @("fitz", "olefile", "openpyxl", "kiwipiepy", "anydoc")) {
             & $py -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>$null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  [OK] python module $mod" -ForegroundColor Green
             } else {
                 Write-Host "  [FAIL] python module $mod" -ForegroundColor Red
+                $checkFail = 1
             }
         }
     }
-    exit 0
+    exit $checkFail
 }
 
 Write-Host "==========================================" -ForegroundColor Cyan
