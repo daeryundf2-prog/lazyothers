@@ -53,6 +53,8 @@ def bind_volumes(items: list[dict], max_bytes: int) -> list[dict]:
     권 경계 판정은 원본 파일 크기의 누적으로 한다(압축 후 크기와 다소 차이가
     나지만, 한계의 50MB는 여유가 크므로 보수적으로 안전하다).
     """
+    from dep_help import require
+    require("fitz")
     import fitz  # PyMuPDF
 
     for item in items:
