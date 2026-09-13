@@ -117,6 +117,11 @@ lazyothers stamp|pii|ruling|flow|db|integrity|certify|morph|draft ...
 인터프리터를 고릅니다 — install.sh가 `.venv` 폴백을 쓴 경우에도 의존성을 찾습니다.
 스킬 없이 터미널에서 스크립트를 직접 부를 때 사용하세요.
 
+**Windows**: `bin\lazyothers.cmd`가 `lazyothers.ps1`을 부르는 진입점입니다.
+`bin\`을 PATH에 추가하면 cmd/PowerShell 어디서든 `lazyothers doc <파일>`이
+동작합니다. 인터프리터 우선순위는 `%LO_PYTHON%` > `.venv\Scripts\python.exe` >
+`%USERPROFILE%\.lfenv` > `python` > `py`입니다.
+
 ## 요구사항
 
 - Python >=3.8, Node.js >=18
