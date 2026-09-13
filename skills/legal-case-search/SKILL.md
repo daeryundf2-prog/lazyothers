@@ -22,17 +22,17 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 
 ```bash
 # 사실성 및 Kiwi 형태소 하이브리드 그라운딩 검증
-python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 법률검토서.md --source 사실관계.txt --morph-grounding --high-fidelity --strict --json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 법률검토서.md --source 사실관계.txt --morph-grounding --high-fidelity --strict --json
 
 # Kiwi 형태소 렉시컬 그라운딩 단독 분석
-python ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 사실관계.txt --target 법률검토서.md --high-fidelity --json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 사실관계.txt --target 법률검토서.md --high-fidelity --json
 ```
 
 ## 설치
 
 ```bash
 # 별도 플러그인 (저장소 URL에 하이픈 있음, 플러그인 디렉터리명은 하이픈 없음)
-git clone https://github.com/daeryundf2-prog/lazyforensic-.git ~/.gemini/config/plugins/lazyforensic
+git clone https://github.com/daeryundf2-prog/lazyforensic.git ~/.gemini/config/plugins/lazyforensic
 
 # korean-law-mcp 빌드 (build/index.js 생성)
 cd ~/.gemini/config/plugins/lazyforensic/korean-law-mcp

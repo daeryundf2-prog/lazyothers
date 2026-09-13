@@ -12,7 +12,7 @@ description: "표찰된 갑/을호증 PDF들을 호증별 북마크 트리와 �
 ## 핵심 도구
 
 ```bash
-python ${PLUGIN_ROOT}/scripts/bind_court_pdf.py \
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/bind_court_pdf.py \
     --input-json evidence.json -o 증거바인더.pdf --max-mb 50
 ```
 

@@ -50,7 +50,7 @@ Google Antigravity용 **한국형 리걸테크(Legal-Tech), 공문서 처리(HWP
 *   **`grep_app`** *(manifest-only)*: GitHub 코드 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/grep_app/` 스펙만 보관 중 (로드맵)
 *   **`xds`** *(manifest-only)*: Astryx XDS 디자인시스템 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/xds/` 스펙만 보관 중 (로드맵)
 
-> MCP 등록: `plugin.json` → `mcp_config.json` 5개 서버 (kordoc/context7/playwright/sequential-thinking + optional korean_law). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
+> MCP 등록: `plugin.json` → `mcp_config.json` 5개 서버 (kordoc/context7/playwright/sequential-thinking + optional `korean_law_proxy`). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
 > 주의: `npm run setup`은 풀설치가 아닙니다. Python 의존성은 `pip install -r requirements.txt`로 별도 설치해야 합니다 (setup 내 pip 시도는 실패해도 경고만 하고 exit 0).
 > 최소 설치가 필요하면 `pip install olefile pymupdf`라도 실행하십시오.
 

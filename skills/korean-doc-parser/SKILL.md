@@ -9,7 +9,7 @@ description: "한국 공문서(HWP, HWPX, PDF) 텍스트, 표, 메타데이터 �
 
 ## 핵심 도구
 
-- **스크립트:** `python ${PLUGIN_ROOT}/scripts/parse_korean_doc.py <파일경로> [--markdown] [--output <결과경로>]`
+- **스크립트:** `${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/parse_korean_doc.py <파일경로> [--markdown] [--output <결과경로>]`
 - **지원 포맷:**
   - `HWPX`: OWPML ZIP/XML 구조 파싱 (섹션별 본문, 표, 서식 메타데이터) — 의존성 없음. 네임스페이스 무관 로컬 이름 매칭이라 한컴 버전과 무관하게 동작. 본문 `text`는 표 셀 내용을 제외하며, 표는 `tables` 필드로 별도 제공(중복 없음).
   - `HWP 5.0`: `hwp-hwpx-parser`(HWP5Reader) 우선, 미설치 또는 파싱 실패 시 `olefile` 원시 스트림 폴백. 폴백은 레코드 구조를 해석하지 않는 **휴리스틱 추출**이라 깨진 문자가 남고 표/개요 구조는 유실됨 — 결과 JSON의 `metadata.quality = "rough"`로 표시되며, 정확한 추출이 필요하면 `pip install hwp-hwpx-parser`.
@@ -27,8 +27,8 @@ pip install -r ${PLUGIN_ROOT}/requirements.txt        # 전체
 
 ```bash
 # 1. HWPX 문서 마크다운으로 파싱
-python scripts/parse_korean_doc.py "압수문서.hwpx" --markdown --output parsed.md
+${PLUGIN_ROOT}/scripts/py scripts/parse_korean_doc.py "압수문서.hwpx" --markdown --output parsed.md
 
 # 2. JSON 구조화 출력
-python scripts/parse_korean_doc.py "계약서.hwp" --output parsed.json
+${PLUGIN_ROOT}/scripts/py scripts/parse_korean_doc.py "계약서.hwp" --output parsed.json
 ```

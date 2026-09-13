@@ -60,7 +60,7 @@ Phase 1 시작 전에 한 번 정한다. **드라이브 루트(`C:\`, `/`)를 SK
 우선순위:
 
 1. Antigravity가 주입한 `${PLUGIN_ROOT}` (파일이 `${PLUGIN_ROOT}/scripts/prepare_monolith_input.py`에 있을 때만).
-2. 그다음 `python scripts/resolve_plugin_root.py --start <이 SKILL.md가 있는 디렉터리>`. 스크립트는 `plugin.json` 또는 `.claude-plugin/`을 만나고 `scripts/prepare_monolith_input.py`가 있는 디렉터리만 반환한다.
+2. 그다음 `${PLUGIN_ROOT}/scripts/py scripts/resolve_plugin_root.py --start <이 SKILL.md가 있는 디렉터리>`. 스크립트는 `plugin.json` 또는 `.claude-plugin/`을 만나고 `scripts/prepare_monolith_input.py`가 있는 디렉터리만 반환한다.
 
 ```bash
 SKILL_ROOT="${PLUGIN_ROOT:-}"
@@ -91,7 +91,7 @@ if (-not $SKILL_ROOT -or -not (Test-Path "$SKILL_ROOT\scripts\prepare_monolith_i
 3. 첫 300자로 장르 자동 추정 (사용자 명시 시 우선)
 4. 사전 처리 shim을 Bash로 1회 실행:
    ```
-   python ${SKILL_ROOT}/scripts/prepare_monolith_input.py --run-dir _workspace/{run_id} --genre {genre}
+   ${SKILL_ROOT}/scripts/py ${SKILL_ROOT}/scripts/prepare_monolith_input.py --run-dir _workspace/{run_id} --genre {genre}
    ```
    - `--genre` 값은 영문 키: `essay | column | report | blog | abstract` (생략 시 `essay`). 장르 힌트 매핑: 칼럼→`column`, 리포트→`report`, 블로그→`blog`, 공적/기타→`essay`.
    - `--run-dir`·`--diagnosis`의 상대 경로는 **cwd 기준**으로 해석된다(위 run_id 규칙과 동일 기준). 그 외 인자: `--text`(run-dir 없이 즉석 실행 시 새 run 디렉토리 자동 생성), `--baseline`(baseline JSON 경로 override, 평소 불필요), `--diagnosis`(진단 텍스트 파일을 점수 블록 앞에 prepend — standard·heavy의 진단 결합용).
@@ -122,7 +122,7 @@ if (-not $SKILL_ROOT -or -not (Test-Path "$SKILL_ROOT\scripts\prepare_monolith_i
    - 진단은 span을 세지 않는다. "무엇이 이 글을 지배하는가"를 판단한다(안정적).
 2. shim으로 진단을 monolith 입력 앞에 결합 (Bash — LLM 콜 아님):
    ```
-   python ${SKILL_ROOT}/scripts/prepare_monolith_input.py --run-dir _workspace/{run_id} --genre {genre} --diagnosis _workspace/{run_id}/02_diagnosis.md
+   ${SKILL_ROOT}/scripts/py ${SKILL_ROOT}/scripts/prepare_monolith_input.py --run-dir _workspace/{run_id} --genre {genre} --diagnosis _workspace/{run_id}/02_diagnosis.md
    ```
    → `01_input_with_metrics.txt`가 [진단 → 정량 블록 → 원문] 순으로 재생성된다.
 3. **윤문 1콜**: `humanize-monolith` 1회 호출 — **청킹 없음. 1만자급도 단일 콜이다.** → `final.md`.
@@ -141,7 +141,7 @@ Standard의 1과 동일 — `humanize-diagnostician` 1콜 → `02_diagnosis.md`.
 ### Phase P2: 겨냥 윤문
 1. shim으로 진단 결합 (Bash). **heavy에서만** `--chunk`를 함께 줄 수 있다:
    ```
-   python ${SKILL_ROOT}/scripts/prepare_monolith_input.py --run-dir _workspace/{run_id} --genre {genre} --diagnosis _workspace/{run_id}/02_diagnosis.md --chunk
+   ${SKILL_ROOT}/scripts/py ${SKILL_ROOT}/scripts/prepare_monolith_input.py --run-dir _workspace/{run_id} --genre {genre} --diagnosis _workspace/{run_id}/02_diagnosis.md --chunk
    ```
    - 분할 여부·경계는 100% shim(Python)이 정한다(문단·문장 경계, 헤딩 승격, 말미 각주 passthrough — 청킹 임계는 shim 관리).
    - 산출: `01_chunk_{NN}_input_with_metrics.txt` N개 + `chunk_manifest.json`.
@@ -150,7 +150,7 @@ Standard의 1과 동일 — `humanize-diagnostician` 1콜 → `02_diagnosis.md`.
 4. **청크 병렬(shim이 실제로 쪼갠 경우만)**:
    - 각 body 청크를 monolith로 **병렬 호출**(동시 최대 4). 입력·출력 파일명은 manifest의 **`input_file`·`rewritten_file` 필드를 그대로** 사용한다 — 파일명을 직접 조립하지 않는다(인덱싱 불일치 사고 방지).
    - 각 청크 콜은 같은 `quick_rules_path`(파일 참조)와 같은 `02_diagnosis.md`를 공유한다. **룰북·진단 전문을 청크 프롬프트에 복붙하지 않는다** — 재로드 비용이 청킹 토큰 폭발의 주범이었다(§설계 노트).
-   - 재조립: `python ${SKILL_ROOT}/scripts/reassemble_chunks.py --run-dir _workspace/{run_id}` → `03_reassembled.md`(passthrough 원문 삽입 + 문자수 대사). 이걸 `final.md`로 삼는다.
+   - 재조립: `${SKILL_ROOT}/scripts/py ${SKILL_ROOT}/scripts/reassemble_chunks.py --run-dir _workspace/{run_id}` → `03_reassembled.md`(passthrough 원문 삽입 + 문자수 대사). 이걸 `final.md`로 삼는다.
    - 청크 경계 문체 이음매가 어색하면 경계 전후 2문단만 monolith로 국소 패치(전역 재작성 금지 — 의미 드리프트 유발).
    - **재청킹 주의**: `--chunk` 재실행 시 경계가 바뀌므로 기존 `02_chunk_*_rewritten.txt`는 shim이 자동 삭제한다(`stale_removed`). 청킹 후 입력을 수정하면 재청킹부터 다시 한다.
 
@@ -187,7 +187,7 @@ monolith가 자체 보고한 변경률은 **참고값**이다. 철칙 #4의 게�
 윤문본이 나온 직후 Bash로 1회 실행:
 
 ```
-python ${SKILL_ROOT}/scripts/verify_gates.py \
+${SKILL_ROOT}/scripts/py ${SKILL_ROOT}/scripts/verify_gates.py \
     --before _workspace/{run_id}/01_input.txt \
     --after  _workspace/{run_id}/final.md \
     --genre {genre}

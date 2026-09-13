@@ -13,15 +13,15 @@ description: "포렌식 증거 파일 전수(SHA-256/MD5/SHA-1) 해시 감사 �
 
 ```bash
 # 1. 증거 폴더 전수 감사 + 증거설명서 대조 → 감사 보고서
-python ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py \
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py \
     --scan-dir 증거폴더 --report 증거설명서.md --output 감사보고서.md
 
 # 2. 개별 파일 감사 + 다중 알고리즘
-python ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py \
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py \
     --file 증거1.pdf --file 증거2.hwp --algorithms sha256,md5
 
 # 3. 보고서 없이 산출만 (해시 목록 + 무결성 증명서)
-python ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py --scan-dir 증거폴더
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py --scan-dir 증거폴더
 ```
 
 ## 판정 규칙

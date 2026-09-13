@@ -167,12 +167,14 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
     Write-Host "Installing Python dependencies for lazyothers..." -ForegroundColor Green
     Push-Location "$pluginDir\lazyothers"
     try {
-        python -m pip install -r requirements.txt 2>$null
+        # PS 5.1에서 `2>$null` + EAP=Stop은 pip의 stderr 경고를 NativeCommandError로
+        # 오판해 헛된 폴백을 유발한다 — cmd /c로 감싸 stderr를 PowerShell에서 격리.
+        cmd /c "python -m pip install -r requirements.txt >NUL 2>NUL"
         if ($LASTEXITCODE -ne 0) {
             # PEP 668(externally-managed) 등으로 시스템 설치가 거부되면 .venv로 폴백
             Write-Host "  [i] system pip 실패 — .venv로 폴백" -ForegroundColor Yellow
-            python -m venv .venv
-            & .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+            cmd /c "python -m venv .venv >NUL 2>NUL"
+            cmd /c ".\.venv\Scripts\python.exe -m pip install -r requirements.txt >NUL 2>NUL"
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  [i] .venv\Scripts\python.exe 로 스크립트를 실행하세요" -ForegroundColor Yellow
             } else {

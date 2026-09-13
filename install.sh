@@ -12,19 +12,20 @@ ORIGINAL_DIR="$(pwd)"
 cd "${PLUGIN_DIR}"
 
 if [ "${1:-}" = "--check" ]; then
+  CHECK_FAIL=0
   echo "== 환경 진단 (설치하지 않음) =="
   for name in lazyantigravity lazyforensic lazyothers; do
     if [ -d "${PLUGIN_DIR}/${name}/.git" ]; then
       echo "  ✅ plugin ${name} ($(cd "${PLUGIN_DIR}/${name}" && git rev-parse --short HEAD))"
     else
-      echo "  ❌ plugin ${name} — 미설치"
+      echo "  ❌ plugin ${name} — 미설치"; CHECK_FAIL=1
     fi
   done
   for tool in git node npm python3; do
     if command -v "$tool" >/dev/null 2>&1; then
       echo "  ✅ $tool ($("$tool" --version 2>/dev/null | head -1))"
     else
-      echo "  ❌ $tool — 미설치"
+      echo "  ❌ $tool — 미설치"; CHECK_FAIL=1
     fi
   done
   if command -v python3 >/dev/null 2>&1; then
@@ -33,12 +34,15 @@ if [ "${1:-}" = "--check" ]; then
       PY="${PLUGIN_DIR}/lazyothers/.venv/bin/python"
     fi
     for mod in fitz olefile openpyxl kiwipiepy firecrawl_anydoc; do
-      "$PY" -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null \
-        && echo "  ✅ python module ${mod}" || echo "  ❌ python module ${mod}"
+      if "$PY" -c "import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('$mod') else 1)" 2>/dev/null; then
+        echo "  ✅ python module ${mod}"
+      else
+        echo "  ❌ python module ${mod}"; CHECK_FAIL=1
+      fi
     done
   fi
   cd "${ORIGINAL_DIR}"
-  exit 0
+  exit "$CHECK_FAIL"
 fi
 
 # "이름 URL" 쌍 목록 (bash 3.2 호환)

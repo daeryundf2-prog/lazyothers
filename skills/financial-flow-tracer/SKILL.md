@@ -14,10 +14,10 @@ description: "은행 거래내역(XLSX/CSV) 자금 흐름 분석 스킬 — 상�
 
 ```bash
 # CSV (은행 내려받기 표준 형식 — utf-8/cp949 자동 판별)
-python ${PLUGIN_ROOT}/scripts/trace_financial_flow.py 거래내역.csv -o 자금흐름.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/trace_financial_flow.py 거래내역.csv -o 자금흐름.md
 
 # XLSX (openpyxl 필요) + 순환 판정 창 3일
-python ${PLUGIN_ROOT}/scripts/trace_financial_flow.py 거래내역.xlsx -o 자금흐름.md --window-days 3
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/trace_financial_flow.py 거래내역.xlsx -o 자금흐름.md --window-days 3
 ```
 
 열 이름은 자동 인식한다(거래일시/일자, 입금액/출금액, 상대방/적요 등 —

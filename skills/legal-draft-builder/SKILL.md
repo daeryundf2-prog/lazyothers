@@ -12,7 +12,7 @@ description: "사실관계 메모와 입증자료 목록으로 대법원 전자�
 ## 핵심 도구
 
 ```bash
-python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o 소장_초안.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o 소장_초안.md
 ```
 
 입력 JSON 구조(필드는 `generate_legal_draft.py` docstring 참조):
@@ -56,16 +56,16 @@ python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json -o
 
 ```bash
 # 초안 생성 시 High-Fidelity 엄격 증거 및 사실성 검증 수행
-python ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json --source 증거_사실관계.txt --high-fidelity -o 소장_초안.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input-json draft.json --source 증거_사실관계.txt --high-fidelity -o 소장_초안.md
 
 # 작성된 마크다운 초안의 조문/판례 사실성 및 Kiwi 형태소 하이브리드 그라운딩 검사
-python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 소장_초안.md --source 증거_사실관계.txt --morph-grounding --high-fidelity --strict --json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 소장_초안.md --source 증거_사실관계.txt --morph-grounding --high-fidelity --strict --json
 
 # 법률 사실성 종합 헬스체크 (Section 5.1 및 7-8 전수 검증 100점 감사)
-python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py --health-check --json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py --health-check --json
 
 # Kiwi 형태소 기반 증거-초안 렉시컬 그라운딩 오버랩 단독 감사
-python ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 증거_사실관계.txt --target 소장_초안.md --high-fidelity --json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --source 증거_사실관계.txt --target 소장_초안.md --high-fidelity --json
 ```
 
 - 허위 조문(예: 민법 제1500조), 미래 판례, 가짜 법원명칭, 가짜 역사 사건, 불가능한 사법 절차 인용 시 exit 1로 생성이 차단됩니다.

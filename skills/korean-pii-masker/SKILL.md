@@ -11,10 +11,10 @@ description: "한국형 개인정보 자동 마스킹 스킬 — 주민등록번
 ## 핵심 도구
 
 ```bash
-python ${PLUGIN_ROOT}/scripts/mask_korean_pii.py 증거설명서.md -o 제출용.md --report 비식별리포트.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/mask_korean_pii.py 증거설명서.md -o 제출용.md --report 비식별리포트.md
 
 # 주민번호·전화만
-python ${PLUGIN_ROOT}/scripts/mask_korean_pii.py 데이터.csv --types rrn,phone
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/mask_korean_pii.py 데이터.csv --types rrn,phone
 ```
 
 ## 마스킹 규칙

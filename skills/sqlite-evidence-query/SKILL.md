@@ -13,14 +13,14 @@ description: "압수 SQLite DB(메신저 백업·앱 데이터·브라우저 히
 
 ```bash
 # 1. 스키마 파악 (테이블·열·행 수)
-python ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db --list-schema
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db --list-schema
 
 # 2. SQL 추출 — SELECT/PRAGMA/EXPLAIN/WITH만 허용 (mode=ro + 문장 검사 3중 잠금)
-python ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db \
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db \
     --sql "SELECT datetime(ts,'unixepoch','localtime'), sender, content FROM messages ORDER BY ts LIMIT 200"
 
 # 3. 삭제 레코드 잔존 흔적 검색 (본 파일 + -wal/-journal)
-python ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db \
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/query_evidence_db.py 증거.db \
     --keywords "회사명,영업비밀,010-1234-5678" -o 흔적검색.md
 ```
 

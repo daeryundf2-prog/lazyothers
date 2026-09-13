@@ -24,7 +24,7 @@ description: "웹 채증 스킬 — playwright MCP로 게시물·댓글·SNS·�
 ## 2단 — 인증 (캡처 직후, 결정적)
 
 ```bash
-python ${PLUGIN_ROOT}/scripts/certify_evidence_file.py 캡처1.png 캡처2.pdf \
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/certify_evidence_file.py 캡처1.png 캡처2.pdf \
     --url "https://example.com/post/123" \
     --note "2026-08-29 14:05 게시물 본문+댓글 캡처" \
     --case "2024가합12345" \
@@ -39,11 +39,11 @@ python ${PLUGIN_ROOT}/scripts/certify_evidence_file.py 캡처1.png 캡처2.pdf \
 
 ```bash
 # 법원 제출용 표찰이 필요하면
-python ${PLUGIN_ROOT}/scripts/stamp_evidence.py 캡처1.png.pdf -o "갑제3호증_채증.pdf" --label "갑 제3호증"
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/stamp_evidence.py 캡처1.png.pdf -o "갑제3호증_채증.pdf" --label "갑 제3호증"
 # 증거설명서에 편입 (원본 해시 기준)
-python ${PLUGIN_ROOT}/scripts/generate_evidence_doc.py --input-json evidence.json -o 증거설명서.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/generate_evidence_doc.py --input-json evidence.json -o 증거설명서.md
 # 기재 해시 대조 (제출 전)
-python ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py --scan-dir 채증폴더 --report 증거설명서.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py --scan-dir 채증폴더 --report 증거설명서.md
 ```
 
 ## 증거력 주의

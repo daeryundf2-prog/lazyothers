@@ -13,17 +13,17 @@ description: "판결문 구조 분석 스킬 — 주문/이유/사실 섹션 분
 
 ```bash
 # 1. 텍스트 확보 (스캔본이면 먼저 OCR — roadmap)
-python ${PLUGIN_ROOT}/scripts/parse_korean_doc.py 판결문.pdf -o 판결문.json
-python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt -o 분석.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/parse_korean_doc.py 판결문.pdf -o 판결문.json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt -o 분석.md
 
 # 2. 사실성 및 Kiwi 형태소 하이브리드 그라운딩 검증 포함 분석
-python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --verify --source 원본판결.txt --morph-grounding -o 분석_검증완료.md
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --verify --source 원본판결.txt --morph-grounding -o 분석_검증완료.md
 
 # 3. High-Fidelity 비파라메트릭 엄격 검증 (조문·판례 날조 및 미지원 용어 원천 차단)
-python ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 분석_검증완료.md --source 판결문.txt --morph-grounding --high-fidelity --strict
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/verify_legal_factuality.py 분석_검증완료.md --source 판결문.txt --morph-grounding --high-fidelity --strict
 
 # 4. 섹션 원문까지 포함한 JSON (에이전트 요약 입력용, --verify 지원)
-python ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --json --verify --high-fidelity --source 원본판결.txt -o 구조.json
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/analyze_court_ruling.py 판결문.txt --json --verify --high-fidelity --source 원본판결.txt -o 구조.json
 ```
 
 ## 산출물

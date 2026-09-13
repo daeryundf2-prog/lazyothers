@@ -48,19 +48,19 @@ description: "개발자를 위한 무료 인프라·PaaS·DB(free-for-dev), 공�
 
 ```bash
 # 1. 현황 및 플랫폼별 대표 카테고리 요약
-python scripts/query_dev_resources.py --summary
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --summary
 
 # 2. 키워드 검색 (예: postgres, auth, ai, tailwind 등)
-python scripts/query_dev_resources.py --query postgres
-python scripts/query_dev_resources.py --query auth
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --query postgres
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --query auth
 
 # 3. 특정 플랫폼으로 필터링
-python scripts/query_dev_resources.py --platform free-for-dev
-python scripts/query_dev_resources.py --platform public-apis.io
-python scripts/query_dev_resources.py --platform devresourc.es
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform free-for-dev
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform public-apis.io
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform devresourc.es
 
 # 4. 카테고리 및 JSON 구조화 출력
-python scripts/query_dev_resources.py --category "Hosting" --json
+${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --category "Hosting" --json
 ```
 
 ---
@@ -68,13 +68,13 @@ python scripts/query_dev_resources.py --category "Hosting" --json
 ## 💡 사용자 요청 대응 가이드
 
 1. **"무료 호스팅이나 무료 DB 추천해줘"**
-   - `python scripts/query_dev_resources.py --platform free-for-dev` 실행 후 사용자의 스택(Next.js, Python, Docker 등)에 맞춰 **Vercel, Render, Supabase, Neon** 등의 무료 용량과 혜택을 비교 추천.
+   - `${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform free-for-dev` 실행 후 사용자의 스택(Next.js, Python, Docker 등)에 맞춰 **Vercel, Render, Supabase, Neon** 등의 무료 용량과 혜택을 비교 추천.
 
 2. **"테스트에 쓸 수 있는 공개 API 있어?"**
-   - `python scripts/query_dev_resources.py --platform public-apis.io` 실행 후 Auth 요구 여부(`No Auth`), HTTPS, CORS 지원 여부를 함께 명시하여 추천.
+   - `${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform public-apis.io` 실행 후 Auth 요구 여부(`No Auth`), HTTPS, CORS 지원 여부를 함께 명시하여 추천.
 
 3. **"UI 디자인이나 색상 팔레트, 아이콘 추천해줘"**
-   - `python scripts/query_dev_resources.py --platform devresourc.es` 실행 후 **shadcn/ui, Lucide Icons, Realtime Colors**의 URL과 사용 목적 안내.
+   - `${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform devresourc.es` 실행 후 **shadcn/ui, Lucide Icons, Realtime Colors**의 URL과 사용 목적 안내.
 
 4. **"요즘 트렌딩 오픈소스나 기술 뉴스 어디서 봐?"**
-   - `python scripts/query_dev_resources.py --platform daily-dev` 실행 후 **daily.dev, GitHub Trending, Hacker News** 가이드 제공.
+   - `${PLUGIN_ROOT}/scripts/py scripts/query_dev_resources.py --platform daily-dev` 실행 후 **daily.dev, GitHub Trending, Hacker News** 가이드 제공.

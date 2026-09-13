@@ -77,9 +77,15 @@ try {
   console.warn(`[lazyothers:sync] Could not validate version consistency: ${e.message}`);
 }
 
-// Python deps: python3 있으면 requirements 설치 시도 (실패해도 exit 0 + 경고)
+// Python deps: install.sh가 PEP 668로 .venv 폴백을 쓴 경우 venv python을
+// 우선 사용한다 — 시스템 pip 재시도는 같은 실패를 반복할 뿐이다.
 try {
-  execSync("python3 -m pip install -r requirements.txt", { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
+  const venvPy = path.join(
+    pluginRoot, ".venv",
+    process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
+  );
+  const py = fs.existsSync(venvPy) ? `"${venvPy}"` : "python3";
+  execSync(`${py} -m pip install -r requirements.txt`, { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
 } catch {
   console.warn("[lazyothers:sync] WARN: pip install skipped/failed — run 'pip install -r requirements.txt' manually (미설치 시 파싱 시점에 늦게 발현될 수 있음)");
 }
