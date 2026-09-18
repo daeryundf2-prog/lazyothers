@@ -86,21 +86,22 @@ def test_stop_claim_guard_blocks_phantom_files(tmp_path):
     assert "Fact-Retracing" in data.get("reason", "")
 
 
-def test_korean_law_mcp_wrapper_resolves_or_exits_honestly():
-    # When no law API key is provided, wrapper either runs offline server or exits 78
+def test_korean_law_mcp_wrapper_resolves_or_exits_honestly(tmp_path):
+    plugin = tmp_path / "plugin" / "scripts"
+    plugin.mkdir(parents=True)
+    wrapper = plugin / "korean_law_mcp_wrapper.mjs"
+    wrapper.write_bytes((ROOT / "scripts" / wrapper.name).read_bytes())
     env = os.environ.copy()
     env.pop("LAW_OC", None)
     env.pop("KOREAN_LAW_API_KEY", None)
-    proc = subprocess.run(
-        [NODE, str(ROOT / "scripts" / "korean_law_mcp_wrapper.mjs")],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        env=env,
-        timeout=5,
-    )
-    # If fallback is found it may be waiting on stdio (timeout or 0) or exit 78 if none found
-    assert proc.returncode in (0, 78) or proc.stderr != ""
+    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, env=env, timeout=5)
+    assert proc.returncode == 78
+    fallback = tmp_path / "lazyantigravity" / "korean-law-mcp" / "src"
+    fallback.mkdir(parents=True)
+    (fallback / "cli.mjs").write_text("process.stdout.write(JSON.stringify(process.argv.slice(2)));", encoding="utf-8")
+    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, env=env, timeout=5)
+    assert proc.returncode == 0
+    assert json.loads(proc.stdout) == ["mcp"]
 
 
 def test_legal_factuality_guard_blocks_fake_statute(tmp_path):
@@ -137,4 +138,13 @@ def test_hooks_matchers_cover_write_file_and_shell():
         assert token in write_m
     for token in ("Bash", "bash", "Shell", "shell", "execute_command"):
         assert token in shell_m
+
+
+def test_mcp_config_covers_bundled_servers_except_manifest_only(tmp_path):
+    config = json.loads((ROOT / "mcp_config.json").read_text(encoding="utf-8"))
+    registered = set(config.get("mcpServers", {}))
+    bundled = {entry.name for entry in (ROOT / "mcp").iterdir() if entry.is_dir()}
+    for tool in bundled:
+        if tool not in {"grep_app", "xds"}:
+            assert tool in registered
 

@@ -131,7 +131,7 @@ lazyothers stamp|pii|ruling|flow|db|integrity|certify|morph|draft ...
 
 ## 요구사항
 
-- Python >=3.8, Node.js >=18
+- Python >=3.12 (CI 및 지원 기준), Node.js >=18 (외부 변환기 선택 시 Node 20+ 필요)
 - 한글 표찰 폰트: 시스템 폰트를 자동 탐색합니다 (macOS AppleSDGothicNeo / Windows 맑은고딕 / Linux NanumGothic). 해당 폰트가 없으면 `scripts/NotoSansKR-Regular.ttf` 또는 `.otf`를 배치하세요. 폰트가 전혀 없으면 `stamp_evidence.py`는 exit 1로 거부됩니다 (`--allow-broken-font` 명시 시에만 깨짐 감수 출력).
 
 ## 🧪 테스트

@@ -136,6 +136,11 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     out = "".join(pieces)
+    from checks import check_protected_content, check_fact_associations
+    failures = check_protected_content(text, out) + check_fact_associations(text, out)
+    if failures:
+        print("Preservation verification failed: " + "; ".join(str(f) for f in failures), file=sys.stderr)
+        return 1
     output_path = run_dir / args.output
     output_path.write_text(out, encoding="utf-8")
 

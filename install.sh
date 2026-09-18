@@ -7,9 +7,7 @@
 set -euo pipefail
 
 PLUGIN_DIR="${HOME}/.gemini/config/plugins"
-mkdir -p "${PLUGIN_DIR}"
 ORIGINAL_DIR="$(pwd)"
-cd "${PLUGIN_DIR}"
 
 if [ "${1:-}" = "--check" ]; then
   CHECK_FAIL=0
@@ -41,9 +39,11 @@ if [ "${1:-}" = "--check" ]; then
       fi
     done
   fi
-  cd "${ORIGINAL_DIR}"
   exit "$CHECK_FAIL"
 fi
+
+mkdir -p "${PLUGIN_DIR}"
+cd "${PLUGIN_DIR}"
 
 # "이름 URL" 쌍 목록 (bash 3.2 호환)
 PLUGINS="

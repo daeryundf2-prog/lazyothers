@@ -42,8 +42,9 @@ def resolve_plugin_root(start: str | None = None, env: dict[str, str] | None = N
 		if not raw:
 			continue
 		candidate = Path(raw).expanduser()
-		if has_humanize_scripts(candidate):
+		if is_plugin_root(candidate) and has_humanize_scripts(candidate):
 			return candidate.resolve()
+		raise FileNotFoundError(f"Invalid explicit plugin root: {key}")
 	start_path = Path(start or environ.get("CLAUDE_SKILL_DIR") or environ.get("SKILL_DIR") or ".")
 	found = walk_from(start_path.expanduser())
 	if found is None:

@@ -397,6 +397,27 @@ def strip_summary_block(text: str) -> str:
     return _SUMMARY_BLOCK_RE.sub("", text).strip()
 
 
+def protected_spans(text):
+    pattern = re.compile(r'<evidence\b[^>]*>.*?</evidence>|```[^\n]*\n.*?```|「[^」]*」|『[^』]*』|“[^”]*”|"[^"\n]*"', re.DOTALL)
+    return [(match.start(), match.end()) for match in pattern.finditer(text)]
+
+
+def check_protected_content(original, output):
+    from collections import Counter
+    before = Counter(original[start:end] for start, end in protected_spans(original))
+    after = Counter(output[start:end] for start, end in protected_spans(output))
+    return [Failure("protected_content_altered", "인용·증거·코드 블록은 원문 그대로 보존해야 합니다") for value, count in before.items() if after[value] < count]
+
+
+def check_fact_associations(original, output):
+    from collections import Counter
+    pattern = re.compile(r"(?P<party>원고|피고|채권자|채무자)(?:는|은|가|에게|의)?\s*(?P<amount>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>원|만원|억원|달러|%)(?![가-힣])")
+    def facts(text):
+        return Counter((m['party'], m['amount'].replace(',', ''), m['unit']) for m in pattern.finditer(text))
+    missing = facts(original) - facts(output)
+    return [Failure("numeric_association_changed", "당사자별 수치 연결이 변경되거나 소실되었습니다") ] if missing else []
+
+
 def run_checks(original: str, output: str) -> list[Failure]:
     original = strip_summary_block(original)
     output = strip_summary_block(output)
@@ -407,6 +428,8 @@ def run_checks(original: str, output: str) -> list[Failure]:
     fails += check_headings(original, output)
     fails += check_footnotes(original, output)
     fails += check_quotes(original, output)
+    fails += check_protected_content(original, output)
+    fails += check_fact_associations(original, output)
     fails += check_numbers(original, output)
     return fails
 

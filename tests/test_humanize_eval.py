@@ -233,3 +233,40 @@ def test_run_humanize_raises_on_failure(monkeypatch):
     monkeypatch.setattr(hr, "_exec", lambda c, t: (0, "   ", ""))
     with pytest.raises(RuntimeError, match="비어"):
         hr.run_humanize("원문")
+
+
+def test_protected_content_and_numeric_associations():
+    import checks
+    original = '원고는 100원, 피고는 200원. “예” <evidence>원문 그대로</evidence>'
+    assert checks.check_protected_content(original, original) == []
+    assert checks.check_fact_associations(original, original) == []
+    assert checks.check_protected_content(original, original.replace('“예”', '“아니오”'))
+    assert checks.check_protected_content(original, original.replace('원문 그대로', '다른 내용'))
+    swapped = original.replace('100원', '300원').replace('200원', '100원').replace('300원', '200원')
+    assert checks.check_fact_associations(original, swapped)
+    assert checks.check_fact_associations('원고는 1,000원.', '원고는 1000원.') == []
+
+
+def test_input_sanitization_preserves_evidence_and_quotes(tmp_path):
+    import prepare_monolith_input as shim
+    source = tmp_path / '01_input.txt'
+    protected = '“가\u200b나” <evidence>다\u200b라</evidence>'
+    source.write_text('마\u200b바 ' + protected, encoding='utf-8')
+    result = shim._load_input(source, tmp_path, True)
+    assert result == '마바 ' + protected
+    assert source.read_text(encoding='utf-8') == result
+
+
+def test_reassembly_rejects_changed_evidence(tmp_path):
+    import hashlib
+    import reassemble_chunks as assembler
+    text = '<evidence>그대로</evidence>'
+    (tmp_path / '01_input.txt').write_text(text, encoding='utf-8')
+    (tmp_path / 'rewrite.txt').write_text('<evidence>수정됨</evidence>', encoding='utf-8')
+    manifest = {'source_file': '01_input.txt', 'source_sha256': hashlib.sha256(text.encode()).hexdigest(), 'chunks': [{'index': 1, 'start': 0, 'end': len(text), 'passthrough': False, 'rewritten_file': 'rewrite.txt'}]}
+    (tmp_path / 'chunk_manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+    assert assembler.main(['--run-dir', str(tmp_path)]) == 1
+    assert not (tmp_path / '03_reassembled.md').exists()
+    (tmp_path / 'rewrite.txt').write_text(text, encoding='utf-8')
+    assert assembler.main(['--run-dir', str(tmp_path)]) == 0
+    assert (tmp_path / '03_reassembled.md').read_text(encoding='utf-8') == text

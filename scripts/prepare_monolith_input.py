@@ -140,7 +140,23 @@ def _load_input(input_path: Path, run_dir: Path, enabled: bool) -> str:
     if not enabled or _sanitize_mod is None:
         return text
     try:
-        cleaned, report = _sanitize_mod.sanitize(text)
+        from checks import protected_spans
+        spans = protected_spans(text)
+        def clean_segment(segment):
+            if not segment.strip():
+                return segment
+            leading = segment[:len(segment) - len(segment.lstrip())]
+            trailing = segment[len(segment.rstrip()):]
+            return leading + _sanitize_mod.sanitize(segment.strip())[0] + trailing
+        pieces = []
+        end = 0
+        for start, stop in spans:
+            pieces.append(clean_segment(text[end:start]))
+            pieces.append(text[start:stop])
+            end = stop
+        pieces.append(clean_segment(text[end:]))
+        cleaned = "".join(pieces)
+        report = _sanitize_mod.inspect(text)
     except Exception:  # noqa: BLE001 — graceful degrade.
         return text
     if report.changed:
