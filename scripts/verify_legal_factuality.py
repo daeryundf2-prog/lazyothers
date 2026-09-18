@@ -197,6 +197,54 @@ STATUTE_BOUNDS = _load_statute_bounds()
 STATUTE_SUBARTICLES = _load_statute_subarticles()
 
 
+ARTICLE_REF_RE = re.compile(r"제?(\d+)조(?:의(\d+))?")
+
+
+def _article_ref(value) -> str | None:
+    """Normalize an article reference to '제N조'/'제N조의M'. Accepts MCP cache
+    shapes: plain numbers, digit strings, '제N조' strings or dicts carrying
+    article_number/number."""
+    if isinstance(value, dict):
+        value = value.get("article_number", value.get("number"))
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        value = f"제{int(value)}조"
+    if isinstance(value, str) and value.strip().isdigit():
+        value = f"제{value.strip()}조"
+    if not isinstance(value, str):
+        return None
+    m = ARTICLE_REF_RE.match(re.sub(r"\s+", "", value))
+    if not m:
+        return None
+    return f"제{m.group(1)}조" + (f"의{m.group(2)}" if m.group(2) else "")
+
+
+def _article_candidates(node: dict) -> list:
+    candidates = []
+    for key in ("articles", "article", "matches", "matched_articles", "article_number"):
+        if key not in node:
+            continue
+        value = node[key]
+        if isinstance(value, dict):
+            candidates.extend(value.keys()) if key == "articles" else candidates.append(value)
+        elif isinstance(value, list):
+            candidates.extend(value)
+        else:
+            candidates.append(value)
+    return candidates
+
+
+def mcp_cache_provenance(mcp_cache) -> dict | None:
+    """Extract provenance/grounding markers from an MCP response so callers can
+    label cache matches as bundled excerpts rather than official sources."""
+    if isinstance(mcp_cache, dict):
+        provenance = mcp_cache.get("provenance")
+        if isinstance(provenance, dict):
+            return provenance
+        if isinstance(mcp_cache.get("grounding_status"), str):
+            return {"grounding_status": mcp_cache["grounding_status"]}
+    return None
+
+
 def match_mcp_statute_cache(citation: str, mcp_cache: dict | list | str | Path | None) -> bool:
     if isinstance(mcp_cache, (str, Path)):
         try:
@@ -220,12 +268,9 @@ def match_mcp_statute_cache(citation: str, mcp_cache: dict | list | str | Path |
             return any(matches(item, depth + 1) for item in node)
         if not isinstance(node, dict):
             return False
-        laws = [normalize(node[k]) for k in ("law", "statute", "law_name", "법령명") if k in node]
+        laws = [normalize(node[k]) for k in ("law", "statute", "law_name", "statute_name", "법령명") if k in node]
         if laws and all(value == law for value in laws):
-            articles = node.get("articles", node.get("article", []))
-            if not isinstance(articles, list):
-                articles = [articles]
-            if any(normalize(value) == article for value in articles):
+            if any(_article_ref(value) == article for value in _article_candidates(node)):
                 return True
         return any(matches(value, depth + 1) for value in node.values() if isinstance(value, (dict, list)))
 
@@ -726,6 +771,7 @@ def verify_legal_text(
         "validation_scope": "format_bounds_and_local_grounding_not_source_authentication",
         "source_verified": False,
         "cache_matched_statutes": sorted(set(cache_matched)),
+        "cache_provenance": mcp_cache_provenance(mcp_cache),
         "verdict": verdict,
         "errors": errors,
         "warnings": warnings,

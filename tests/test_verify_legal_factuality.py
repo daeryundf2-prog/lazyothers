@@ -630,6 +630,24 @@ def test_mcp_matcher_validation(tmp_path):
     # 1d. 회귀: 전역 부분열 매칭은 더 이상 근거가 아니다
     assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", "우주항공보안법 제12조 문자열만 있음") is False
 
+    # 1e. korean-law-mcp 실제 응답 형태: statute_name 키 + dict형 articles
+    mcp_all = {"ok": True, "statute_name": "우주항공보안법",
+               "articles": {"12": "제12조 (의무) ...", "13": "제13조 ..."},
+               "grounding_status": "CACHED_EXCERPT_UNVERIFIED"}
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", mcp_all) is True
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제99조", mcp_all) is False
+    # 단일 조문 응답(article_number)과 키워드 검색 응답(matches[])
+    assert vlf.match_mcp_statute_cache(
+        "우주항공보안법 제12조",
+        {"ok": True, "statute_name": "우주항공보안법", "article_number": "12", "text": "..."}) is True
+    assert vlf.match_mcp_statute_cache(
+        "우주항공보안법 제13조",
+        {"ok": True, "statute_name": "우주항공보안법",
+         "matches": [{"article_number": "13", "text": "..."}]}) is True
+    # provenance는 결과에 노출된다(발췌 캐시 = 보조 대조)
+    res = vlf.verify_legal_text("피고는 우주항공보안법 제12조를 위반하였다.", mcp_cache=mcp_all)
+    assert res["cache_provenance"] == {"grounding_status": "CACHED_EXCERPT_UNVERIFIED"}
+
     # 2. verify_legal_text with mcp_cache suppresses ungrounded warnings
     text = "피고는 우주항공보안법 제12조를 위반하였다."
     res_without = vlf.verify_legal_text(text)
