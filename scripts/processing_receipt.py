@@ -32,7 +32,9 @@ def hash_file(path):
         after = os.fstat(stream.fileno())
         current = path.stat()
     def identity(value):
-        return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
+        fields = (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns)
+        # NTFS reports a different st_ctime_ns via fstat() vs stat() on an unchanged file
+        return fields if os.name == "nt" else fields + (value.st_ctime_ns,)
     if identity(before) != identity(after) or identity(after) != identity(current):
         raise ValueError("Source changed while hashing")
     return digest.hexdigest()

@@ -32,7 +32,7 @@ def test_full_sha256_and_relative_path_resolution(tmp_path):
     assert code == 1
     assert _sha256(source) in output.read_text(encoding="utf-8")
     assert "2024가합1" in output.read_text(encoding="utf-8")
-    item = json.loads(result.read_text())["evidence_list"][0]
+    item = json.loads(result.read_text(encoding="utf-8"))["evidence_list"][0]
     assert item["processing_receipt_status"] == "unverified"
     assert item["hash_status"] == "verified"
     assert item["processing_receipt"]["case_id"] is None
@@ -47,7 +47,7 @@ def test_missing_file_marks_na(tmp_path):
 def test_explicit_sha256_respected(tmp_path):
     _, output, result = run_doc(tmp_path, [{"sha256": "abc123"}])
     assert "abc123" in output.read_text(encoding="utf-8")
-    item = json.loads(result.read_text())["evidence_list"][0]
+    item = json.loads(result.read_text(encoding="utf-8"))["evidence_list"][0]
     assert item["claimed_sha256"] == "abc123"
     assert item["sha256"] is None
     assert item["hash_status"] == "unknown"
@@ -89,7 +89,7 @@ def test_claimed_hash_is_recomputed(tmp_path, claimed):
     actual = _sha256(source)
     claimed = actual if claimed == "matching" else claimed
     _, _, result = run_doc(tmp_path, [{"file_path": source.name, "sha256": claimed}])
-    item = json.loads(result.read_text())["evidence_list"][0]
+    item = json.loads(result.read_text(encoding="utf-8"))["evidence_list"][0]
     assert item["sha256"] == actual
     assert item["claimed_sha256"] == claimed
     assert item["hash_status"] == ("mismatch" if claimed and claimed != actual else "verified")
@@ -110,7 +110,7 @@ def test_forensic_export_end_to_end_and_explicit_approval(tmp_path):
     item = export_item(tmp_path)
     code, output, result = run_doc(tmp_path, [item])
     assert code == 0
-    report = json.loads(result.read_text())
+    report = json.loads(result.read_text(encoding="utf-8"))
     generated = report["evidence_list"][0]
     assert generated["processing_receipt_status"] == "verified"
     assert generated["imported_processing_receipt"] == item["processing_receipt"]
@@ -120,7 +120,7 @@ def test_forensic_export_end_to_end_and_explicit_approval(tmp_path):
     assert receipt["artifacts"][0]["sha256"] == _sha256(output)
     manifest = tmp_path / "evidence.json"
     assert ged.main(["-i", str(manifest), "-o", str(output), "--output-json", str(result), "--reviewer", "Synthetic reviewer"]) == 0
-    approved = json.loads(result.read_text())["evidence_list"][0]["processing_receipt"]
+    approved = json.loads(result.read_text(encoding="utf-8"))["evidence_list"][0]["processing_receipt"]
     assert approved["review"]["status"] == "approved"
     assert approved["review"]["reviewer"] == "Synthetic reviewer"
 
@@ -143,7 +143,7 @@ def test_invalid_export_never_verifies(tmp_path, change):
         item["processing_receipt"]["status"] = "partial"
     code, _, result = run_doc(tmp_path, [item])
     assert code == 1
-    generated = json.loads(result.read_text())["evidence_list"][0]
+    generated = json.loads(result.read_text(encoding="utf-8"))["evidence_list"][0]
     assert generated["processing_receipt_status"] == "unverified"
     receipt = generated["processing_receipt"]
     if receipt:
