@@ -1,186 +1,179 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-generate_evidence_doc.py - 대법원 제출용 증거설명서(Evidence Explanation Document) 자동 생성기
-"""
-
+import argparse
+import copy
+import json
 import os
 import sys
-import json
-import argparse
-import hashlib
 from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
+
+from processing_receipt import approve_receipt, hash_file, make_receipt, verify_receipt, write_verified, utc_now
 
 
-def calculate_sha256(filepath: str) -> str:
-    if not os.path.exists(filepath):
+SAMPLE_BANNER = "> [샘플 자동 생성본 — 법원 제출 금지] 실제 증거 목록으로 교체하십시오."
+
+
+def calculate_sha256(filepath):
+    try:
+        return hash_file(filepath)
+    except (OSError, ValueError):
         return "N/A"
-    sha = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        while True:
-            chunk = f.read(65536)
-            if not chunk:
-                break
-            sha.update(chunk)
-    return sha.hexdigest()
 
 
-def _escape_cell(text: str) -> str:
-    """Escape markdown table breaking characters."""
-    if text is None:
-        return ""
-    return str(text).replace("|", "\\|").replace("\n", " ").replace("\r", "")
+def _escape_cell(text):
+    return str(text if text is not None else "").replace("|", "\\|").replace("\n", " ").replace("\r", "")
 
 
-def resolve_evidence_hashes(evidence_list: list, base_dir: str = ""):
-    """sha256이 없는 항목에 대해 파일 해시를 계산해 채운다.
-
-    상대 경로는 --input-json 파일이 있는 디렉토리 기준으로 해석한다.
-    """
+def resolve_evidence_hashes(evidence_list, base_dir="", case_id=None):
+    if not isinstance(evidence_list, list) or any(not isinstance(item, dict) for item in evidence_list):
+        raise ValueError("Evidence items must be a list of objects")
+    ids = set()
     for item in evidence_list:
-        if item.get("sha256"):
-            continue
-        file_path = item.get("file_path", "")
-        if not file_path:
-            item["sha256"] = "N/A"
-            continue
-        candidates = [file_path]
-        if base_dir and not os.path.isabs(file_path):
-            candidates.insert(0, os.path.join(base_dir, file_path))
-        for cand in candidates:
-            if os.path.exists(cand):
-                item["sha256"] = calculate_sha256(cand)
-                break
+        imported = item.get("processing_receipt")
+        claimed = item.get("claimed_sha256", item.get("sha256"))
+        errors = verify_receipt(imported, base_dir) if imported is not None else ["Legacy input: no processing_receipt; provenance unverified"]
+        source = imported.get("source", {}) if isinstance(imported, dict) else {}
+        source = source if isinstance(source, dict) else {}
+        evidence_id = item.get("evidence_id") or (imported.get("evidence_id") if isinstance(imported, dict) else None) or str(uuid4())
+        if not isinstance(evidence_id, str) or not evidence_id.strip() or evidence_id in ids:
+            raise ValueError("Invalid or duplicate evidence_id")
+        ids.add(evidence_id)
+        path = item.get("file_path") or item.get("file") or source.get("path")
+        if path is not None and not isinstance(path, str):
+            raise ValueError("Invalid evidence path")
+        resolved = str((Path(base_dir) / path).absolute()) if path else None
+        actual = None
+        if resolved:
+            try:
+                actual = hash_file(resolved)
+            except (OSError, ValueError):
+                errors.append("Source missing, unreadable or changed while hashing")
         else:
-            item["sha256"] = "N/A (file not found)"
+            errors.append("No source path")
+        mismatch = claimed is not None and actual is not None and (not isinstance(claimed, str) or claimed.lower() != actual)
+        if mismatch:
+            errors.append("Claimed SHA-256 mismatch / 불일치")
+        if isinstance(imported, dict):
+            if imported.get("evidence_id") != evidence_id:
+                errors.append("Receipt evidence_id mismatch")
+            if case_id is not None and imported.get("case_id") != case_id:
+                errors.append("Receipt case_id mismatch")
+            linked = [source, *(imported.get("artifacts") if isinstance(imported.get("artifacts"), list) else [])]
+            linked = [entry for entry in linked if isinstance(entry, dict) and isinstance(entry.get("path"), str)]
+            if not resolved or not any((Path(base_dir) / entry["path"]).resolve() == Path(resolved).resolve() and entry.get("sha256") and entry["sha256"].lower() == actual for entry in linked):
+                errors.append("Receipt does not bind this evidence file")
+        item.update({
+            "evidence_id": evidence_id, "file_path": resolved,
+            "claimed_sha256": claimed, "sha256": actual, "verified_sha256": actual,
+            "hash_status": "unknown" if actual is None else "mismatch" if mismatch else "verified",
+            "processing_receipt_status": "verified" if not errors else "unverified",
+            "verification_warnings": errors,
+        })
+        if imported is not None:
+            item["imported_processing_receipt"] = copy.deepcopy(imported)
+        if resolved:
+            receipt = make_receipt(resolved, "generate_evidence_doc", case_id=case_id, evidence_id=evidence_id)
+            if receipt["source"]["sha256"] != actual:
+                errors.append("Source changed between measurements")
+            receipt["warnings"].extend(errors)
+            if errors and receipt["status"] == "complete":
+                receipt["status"] = "partial"
+                receipt["exit_code"] = 1
+            item["processing_receipt"] = receipt
+        else:
+            item["processing_receipt"] = None
 
 
-SAMPLE_BANNER = (
-    "> ⚠️ **[샘플 자동 생성본 — 법원 제출 금지]** 실제 증거 목록이 입력되지 않아 "
-    "샘플 플레이스홀더로 생성된 문서입니다. `--input-json`으로 실제 증거 목록을 "
-    "입력해 다시 생성하기 전까지 어떠한 경우에도 제출하지 마십시오."
-)
-
-
-def generate_evidence_markdown(case_info: dict, evidence_list: list, output_path: str, is_sample: bool = False):
-    """표준 증거설명서 마크다운 생성 (is_sample=True면 본문 머리/끝에 제출 방지 배너)"""
-    lines = []
-    lines.append("# 증 거 설 명 서\n")
+def generate_evidence_markdown(case_info, evidence_list, output_path, is_sample=False, protected=()):
+    lines = ["# 증 거 설 명 서", "", "> 법률 문서 초안 — 변호사 검토 후 제출하십시오. 자동 검증은 사실성·적법성·보관 연속성을 증명하지 않습니다."]
     if is_sample:
         lines.append(SAMPLE_BANNER)
-        lines.append("")
-    lines.append(f"**사 건:** {_escape_cell(case_info.get('case_number', '202X가합XXXX호'))} {_escape_cell(case_info.get('case_name', '손해배상(기) 등'))}")
-    lines.append(f"**원 고:** {_escape_cell(case_info.get('plaintiff', '홍길동'))}")
-    lines.append(f"**피 고:** {_escape_cell(case_info.get('defendant', '주식회사 XXX'))}\n")
-    lines.append("위 사건에 관하여 원고(또는 피고)는 주장사실을 입증하기 위하여 다음과 같이 증거를 제출합니다.\n")
-    lines.append("### 다 음\n")
-    lines.append("| 순번 | 서증부호 및 번호 | 서증명 (파일명) | 작성자 / 일자 | 입증취지 (Proof Purpose) | 비고 (포렌식 무결성 SHA-256) |")
-    lines.append("| :---: | :--- | :--- | :---: | :--- | :--- |")
-
+    for key, label in (("case_number", "사 건"), ("case_name", "사건명"), ("plaintiff", "원 고"), ("defendant", "피 고")):
+        lines.append(f"**{label}:** {_escape_cell(case_info.get(key, '미상'))}")
+    lines += ["", "| 순번 | evidence_id | 서증부호 | 서증명 | 작성자 / 일자 | 입증취지 | 측정 SHA-256 | 기재 SHA-256 | 검증 상태 |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for idx, item in enumerate(evidence_list, 1):
-        label = _escape_cell(item.get("label", f"갑 제{idx}호증"))
-        title = _escape_cell(item.get("title", f"증거물_{idx}"))
-        author_date = _escape_cell(f"{item.get('author', '작성자불상')} / {item.get('date', datetime.now().strftime('%Y-%m-%d'))}")
-        purpose = _escape_cell(item.get("purpose", "주장사실 입증"))
-        file_hash = _escape_cell(item.get("sha256", "N/A"))
-
-        lines.append(f"| {idx} | **{label}** | {title} | {author_date} | {purpose} | `{file_hash}` |")
-
-    lines.append("\n### 첨 부 서 류\n")
-    for idx, item in enumerate(evidence_list, 1):
-        lines.append(f"1. {_escape_cell(item.get('label', f'갑 제{idx}호증'))} 각 1통")
-
-    lines.append(f"\n**작성일자:** {datetime.now().strftime('%Y년 %m월 %d일')}")
-    lines.append(f"**제출인:** {_escape_cell(case_info.get('submitter', '원고 소송대리인'))}")
-    lines.append(f"**{_escape_cell(case_info.get('court', '서울중앙지방법원'))} 귀중**\n")
+        values = [idx, item.get("evidence_id", "unknown"), item.get("label", f"갑 제{idx}호증"), item.get("title", f"증거물_{idx}"), f"{item.get('author', '작성자불상')} / {item.get('date', '미상')}", item.get("purpose", "입증취지 미제공"), item.get("verified_sha256") or "N/A (file not found)", item.get("claimed_sha256") or "unknown", f"hash={item.get('hash_status', 'unknown')}; receipt={item.get('processing_receipt_status', 'unverified')} (미검증 근거는 검증됨이 아님)"]
+        lines.append("| " + " | ".join(_escape_cell(v) for v in values) + " |")
+        for warning in item.get("verification_warnings", []):
+            lines.append(f"\n> {_escape_cell(item.get('evidence_id'))}: {_escape_cell(warning)}\n")
+    lines += ["", f"**작성일자:** {datetime.now().strftime('%Y-%m-%d')}", f"**제출인:** {_escape_cell(case_info.get('submitter', '미상'))}", f"**{_escape_cell(case_info.get('court', '관할 법원 미상'))} 귀중**"]
     if is_sample:
         lines.append(SAMPLE_BANNER)
-
-    content = "\n".join(lines)
-    out_dir = os.path.dirname(os.path.abspath(output_path))
-    if out_dir and not os.path.exists(out_dir):
-        os.makedirs(out_dir, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    print(f"[OK] Successfully generated Evidence Statement: {output_path}")
+    sources = [item.get("file_path") for item in evidence_list]
+    return write_verified(output_path, "\n".join(lines) + "\n", protected=[*protected, *sources])
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="대법원 표준 규격 증거설명서 자동 생성기")
-    parser.add_argument("--input-json", "-i", help="증거 목록 JSON 파일 경로")
-    parser.add_argument("--output", "-o", default="증거설명서.md", help="출력 파일 경로 (.md)")
-    parser.add_argument("--case-num", default="202X가합XXXX호", help="사건번호")
-    parser.add_argument("--case-name", default="영업비밀침해금지 등 청구의 소", help="사건명")
-    parser.add_argument("--court", default="서울중앙지방법원", help="관할 법원")
-    parser.add_argument("--allow-sample", action="store_true", help="실제 증거 없이 샘플 플레이스홀더 생성을 명시적으로 허용 (없으면 exit 2로 거부)")
-
+    parser = argparse.ArgumentParser(description="증거설명서 초안 및 검증 기록 생성")
+    parser.add_argument("--input-json", "-i")
+    parser.add_argument("--output", "-o", default="증거설명서.md")
+    parser.add_argument("--output-json")
+    parser.add_argument("--reviewer")
+    parser.add_argument("--case-id")
+    parser.add_argument("--case-num", default="미상")
+    parser.add_argument("--case-name", default="미상")
+    parser.add_argument("--court", default="관할 법원 미상")
+    parser.add_argument("--allow-sample", action="store_true")
     args = parser.parse_args(argv)
-
-    evidence_list = []
-    case_info = {
-        "case_number": args.case_num,
-        "case_name": args.case_name,
-        "court": args.court,
-        "plaintiff": "원고",
-        "defendant": "피고",
-        "submitter": "소송대리인"
-    }
-
+    case_info = {"case_number": args.case_num, "case_name": args.case_name, "court": args.court}
+    case_id = args.case_id
+    items = []
+    data = None
     if args.input_json:
-        if not os.path.exists(args.input_json):
-            print(f"[WARN] input JSON not found: {args.input_json}", file=sys.stderr)
-            print("[WARN] Using built-in sample data — replace before court submission!", file=sys.stderr)
-            evidence_list = []
-        else:
-            try:
-                with open(args.input_json, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-            except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                print(f"[WARN] Failed to parse input JSON ({e}) — using sample data.", file=sys.stderr)
-                data = None
-            if isinstance(data, dict):
-                case_info.update(data.get("case_info", {}))
-                evidence_list = data.get("evidence_list", [])
-            elif isinstance(data, list):
-                evidence_list = data
-            elif data is not None:
-                print(f"[WARN] Unexpected JSON root type: {type(data)}", file=sys.stderr)
-
-    # 상대 경로는 input-json 위치 기준으로 해석해 전체 SHA-256을 채운다
-    base_dir = os.path.dirname(os.path.abspath(args.input_json)) if args.input_json else ""
-    resolve_evidence_hashes(evidence_list, base_dir)
-
-    using_sample = False
-    if not evidence_list:
-        using_sample = True
-        if not args.allow_sample:
-            print("[!] Refusing to generate sample placeholder without --allow-sample. Pass --allow-sample to explicitly opt in (output will carry a submission-ban watermark).", file=sys.stderr)
-            sys.exit(2)
-        if args.input_json:
-            print("[WARN] evidence_list is empty — generating sample placeholder. DO NOT submit as-is.", file=sys.stderr)
-        else:
-            print("[WARN] --input-json not provided — generating sample placeholder. Provide real evidence JSON before submission.", file=sys.stderr)
-        if "_SAMPLE_" not in args.output and "SAMPLE" not in args.output and "샘플" not in args.output:
-            print("[WARN] Sample output filename should contain _SAMPLE_ to prevent accidental court submission.", file=sys.stderr)
-        evidence_list = [
-            {
-                "label": "갑 제1호증의 1",
-                "title": "[SAMPLE] 피고-원고 카카오톡 대화 내역 캡처본 — 실제 증거로 교체 필요",
-                "author": "원고",
-                "date": "2024-01-16",
-                "purpose": "피고가 원고에게 영업비밀 유출을 제안한 사실 입증"
-            },
-            {
-                "label": "갑 제1호증의 2",
-                "title": "[SAMPLE] USB 저장매체 파일 반출 타임스탬프 분석서 — 실제 증거로 교체 필요",
-                "author": "포렌식 감정관",
-                "date": "2024-01-17",
-                "purpose": "피고 컴퓨터에서 업무시간 외 대용량 소스코드가 외장 USB로 복사된 사실 입증"
-            }
-        ]
-
-    generate_evidence_markdown(case_info, evidence_list, args.output, is_sample=using_sample)
+        try:
+            data = json.loads(Path(args.input_json).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"[WARN] Cannot load input: {exc}", file=sys.stderr)
+    if isinstance(data, dict):
+        case_info.update(data.get("case_info", {}))
+        case_id = case_id or data.get("case_id")
+        items = data.get("evidence_list", data.get("items", data.get("evidence", [])))
+        if not items and "processing_receipt" in data:
+            items = [data]
+    elif isinstance(data, list):
+        items = data
+    sample = not items
+    if sample and not args.allow_sample:
+        parser.error("No evidence: explicit --allow-sample required")
+    if sample:
+        items = [{"title": "[SAMPLE] 실제 증거로 교체 필요"}]
+    if args.reviewer and not args.output_json:
+        parser.error("--reviewer requires --output-json")
+    base_dir = str(Path(args.input_json).absolute().parent) if args.input_json else ""
+    try:
+        resolve_evidence_hashes(items, base_dir, case_id)
+        protected = [args.input_json] if args.input_json else []
+        for item in items:
+            imported = item.get("imported_processing_receipt")
+            if isinstance(imported, dict):
+                entries = [imported.get("source"), *(imported.get("artifacts") if isinstance(imported.get("artifacts"), list) else [])]
+                protected.extend(str(Path(base_dir) / e["path"]) for e in entries if isinstance(e, dict) and isinstance(e.get("path"), str))
+        if args.output_json and Path(args.output_json).resolve() == Path(args.output).resolve():
+            raise ValueError("JSON and Markdown output paths must differ")
+        digest = generate_evidence_markdown(case_info, items, args.output, sample, protected)
+        for item in items:
+            receipt = item["processing_receipt"]
+            if not receipt:
+                continue
+            receipt["artifacts"] = [{"path": str(Path(args.output).absolute()), "sha256": digest}]
+            receipt["finished_at"] = utc_now()
+            errors = verify_receipt(receipt)
+            if errors and receipt["status"] == "complete":
+                receipt["status"] = "partial"
+                receipt["exit_code"] = 1
+                receipt["warnings"].extend(errors)
+            if args.reviewer:
+                item["processing_receipt"] = approve_receipt(receipt, args.reviewer)
+        if args.reviewer and any(not i["processing_receipt"] for i in items):
+            raise ValueError("Cannot approve unmeasured evidence")
+        if args.output_json:
+            output = {"case_id": case_id, "case_info": case_info, "evidence_list": items}
+            write_verified(args.output_json, json.dumps(output, ensure_ascii=False, indent=2), protected=[*protected, args.output, *(i.get("file_path") for i in items)])
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return 2
+    return 0 if all(i["processing_receipt_status"] == "verified" for i in items) else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

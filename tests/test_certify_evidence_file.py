@@ -10,7 +10,8 @@ import pytest
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import certify_evidence_file as cef  # noqa: E402
+import certify_evidence_file as cef
+import processing_receipt as pr
 
 
 @pytest.fixture()
@@ -25,41 +26,77 @@ def test_certify_binds_hash_url_and_time(capture):
     assert rec["items"][0]["sha256"] == hashlib.sha256(capture.read_bytes()).hexdigest()
     assert rec["source_url"] == "https://example.com/p/1"
     assert rec["case_number"] == "2024가합1"
-    assert rec["certified_at_utc"].endswith("+00:00")
+    assert rec["items"][0]["processing_receipt"]["case_id"] == "2024가합1"
     assert rec["items"][0]["file_mtime_utc"].endswith("+00:00")
 
 
 def test_record_self_hash_deterministic(capture):
-    """자기 해시는 기록 필드만으로 재계산되어 검증 가능해야 한다.
+    rec = cef.certify([str(capture)], url="u", note="", case_number="")
+    assert rec["record_sha256"] == cef.record_hash(rec)
 
-    두 호출이 1초 경계를 걸치면 certified_at이 달라져(별개 기록) 해시가
-    달라지는 것이 정상이므로, 재계산 일치로만 검증한다.
-    """
-    rec1 = cef.certify([str(capture)], url="u", note="", case_number="")
-    payload = {k: v for k, v in rec1.items() if k != "record_sha256"}
-    assert rec1["record_sha256"] == hashlib.sha256(
-        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    ).hexdigest()
+
+def test_record_hash_excludes_itself(capture):
+    rec = cef.certify([str(capture)], url="", note="", case_number="")
+    changed = dict(rec)
+    changed["record_sha256"] = "tampered"
+    assert cef.record_hash(changed) == rec["record_sha256"]
 
 
 def test_missing_file_returns_empty(capture):
     assert cef.certify([str(capture), "없는파일.png"], "", "", "") == {}
 
 
-def test_main_outputs_json_and_markdown(capture, tmp_path):
-    out_json = tmp_path / "채증기록.json"
-    out_md = tmp_path / "채증기록.md"
-    rc = cef.main([
-        str(capture), "--url", "https://example.com/x",
-        "--output", str(out_json), "--output-md", str(out_md),
-    ])
-    assert rc == 0
+def test_source_url_is_claimed_not_verified(capture):
+    capture.write_bytes(b"content")
+    rec = cef.certify([str(capture)], url="https://unverified.example/", note="", case_number=None)
+    assert rec["items"][0]["processing_receipt"]["parameters"]["claimed_source_url"] == "https://unverified.example/"
+    assert rec["items"][0]["processing_receipt"]["case_id"] is None
+
+
+def test_main_outputs_json_and_markdown_with_receipt(capture, tmp_path):
+    out_json = tmp_path / "record.json"
+    out_md = tmp_path / "record.md"
+    assert cef.main([str(capture), "--url", "https://example.com/x", "--output", str(out_json), "--output-md", str(out_md)]) == 0
     rec = json.loads(out_json.read_text(encoding="utf-8"))
-    assert rec["items"][0]["name"] == "캡처.png"
+    item = rec["items"][0]
+    receipt = item["processing_receipt"]
+    assert pr.verify_receipt(receipt) == []
+    assert receipt["artifacts"][0]["sha256"] == hashlib.sha256(out_md.read_bytes()).hexdigest()
+    assert receipt["review"]["status"] == "pending"
     md = out_md.read_text(encoding="utf-8")
-    assert "웹 채증 기록" in md
+    assert "로컬 파일 측정" in md
     assert hashlib.sha256(capture.read_bytes()).hexdigest() in md
-    assert "record_sha256" in md or "본 기록 SHA-256" in md
+    assert "전자서명도 신뢰 타임스탬프도 아니며" in md or "보관 연속성" in md
+
+
+def test_explicit_reviewer_approval(tmp_path, capture):
+    out_json = tmp_path / "record.json"
+    out_md = tmp_path / "record.md"
+    assert cef.main([str(capture), "--output", str(out_json), "--output-md", str(out_md), "--reviewer", "검토자"]) == 0
+    receipt = json.loads(out_json.read_text(encoding="utf-8"))["items"][0]["processing_receipt"]
+    assert receipt["review"] == {"status": "approved", "reviewer": "검토자", "reviewed_at": receipt["review"]["reviewed_at"]}
+    assert receipt["review"]["reviewed_at"].endswith("+00:00")
+    assert pr.validate_receipt(receipt) == []
+
+
+def test_approval_requires_verified_artifacts(capture, tmp_path):
+    out_json = tmp_path / "record.json"
+    out_md = tmp_path / "record.md"
+    with pytest.raises(SystemExit):
+        cef.main([str(capture), "--output", str(out_json), "--reviewer", "검토자"])
+    assert not out_json.exists()
+    with pytest.raises(SystemExit):
+        cef.main([str(capture), "--output-md", str(out_md), "--reviewer", "검토자"])
+
+
+def test_changed_source_is_rejected(capture, monkeypatch):
+    original_hash = cef._hash_file
+    def change_after_hash(path, algorithm):
+        digest = original_hash(path, algorithm)
+        capture.write_bytes(b"updated synthetic content")
+        return digest
+    monkeypatch.setattr(cef, "_hash_file", change_after_hash)
+    assert cef.certify([str(capture)], "", "", "") == {}
 
 
 def test_main_missing_file_exit_2():

@@ -1,105 +1,175 @@
-"""generate_evidence_doc.py 테스트 — 전체 SHA-256 기재 및 경로 해석 검증."""
-
 import hashlib
+import json
 import sys
 from pathlib import Path
+
+import pytest
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import generate_evidence_doc as ged  # noqa: E402
+import generate_evidence_doc as ged
+import processing_receipt as pr
 
 
-def _sha256(path: Path) -> str:
+def _sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def run_doc(tmp_path, items, **extra):
+    manifest = tmp_path / "evidence.json"
+    manifest.write_text(json.dumps({"evidence_list": items, **extra}), encoding="utf-8")
+    output = tmp_path / "report.md"
+    result = tmp_path / "report.json"
+    code = ged.main(["-i", str(manifest), "-o", str(output), "--output-json", str(result), "--case-num", "2024가합1"])
+    return code, output, result
+
+
 def test_full_sha256_and_relative_path_resolution(tmp_path):
-    """파일 경로가 input-json 기준 상대경로여도 전체 해시가 계산되어야 한다."""
-    evidence_file = tmp_path / "증거.pdf"
-    evidence_file.write_bytes(b"%PDF-1.4 fake evidence bytes")
-
-    input_json = tmp_path / "evidence.json"
-    input_json.write_text(
-        f'''{{
-          "evidence_list": [
-            {{"label": "갑 제1호증", "title": "테스트 증거", "file_path": "증거.pdf"}}
-          ]
-        }}''',
-        encoding="utf-8",
-    )
-
-    output = tmp_path / "증거설명서.md"
-    ged.main(["--input-json", str(input_json), "--output", str(output), "--case-num", "2024가합1"])
-
-    md = output.read_text(encoding="utf-8")
-    full_hash = _sha256(evidence_file)
-    assert full_hash in md, "전체 SHA-256이 기재되어야 함"
-    assert "2024가합1" in md
+    source = tmp_path / "증거.pdf"
+    source.write_bytes(b"synthetic document")
+    code, output, result = run_doc(tmp_path, [{"file_path": source.name}])
+    assert code == 1
+    assert _sha256(source) in output.read_text(encoding="utf-8")
+    assert "2024가합1" in output.read_text(encoding="utf-8")
+    item = json.loads(result.read_text())["evidence_list"][0]
+    assert item["processing_receipt_status"] == "unverified"
+    assert item["hash_status"] == "verified"
+    assert item["processing_receipt"]["case_id"] is None
 
 
 def test_missing_file_marks_na(tmp_path):
-    input_json = tmp_path / "evidence.json"
-    input_json.write_text(
-        '{"evidence_list": [{"label": "갑 제2호증", "title": "없는 파일", "file_path": "없음.pdf"}]}',
-        encoding="utf-8",
-    )
-    output = tmp_path / "증거설명서.md"
-    ged.main(["--input-json", str(input_json), "--output", str(output)])
-    md = output.read_text(encoding="utf-8")
-    assert "N/A (file not found)" in md
+    code, output, _ = run_doc(tmp_path, [{"file_path": "absent.pdf"}])
+    assert code == 1
+    assert "N/A (file not found)" in output.read_text(encoding="utf-8")
 
 
 def test_explicit_sha256_respected(tmp_path):
-    input_json = tmp_path / "evidence.json"
-    input_json.write_text(
-        '{"evidence_list": [{"label": "갑 제3호증", "title": "수동 해시", "sha256": "abc123"}]}',
-        encoding="utf-8",
-    )
-    output = tmp_path / "증거설명서.md"
-    ged.main(["--input-json", str(input_json), "--output", str(output)])
-    md = output.read_text(encoding="utf-8")
-    assert "abc123" in md
+    _, output, result = run_doc(tmp_path, [{"sha256": "abc123"}])
+    assert "abc123" in output.read_text(encoding="utf-8")
+    item = json.loads(result.read_text())["evidence_list"][0]
+    assert item["claimed_sha256"] == "abc123"
+    assert item["sha256"] is None
+    assert item["hash_status"] == "unknown"
 
 
 def test_sample_generation_carries_submission_ban_watermark(tmp_path):
-    """회귀: 실제 증거 JSON 없이 생성하면 본문에 제출 금지 워터마크가 들어가야 한다."""
-    output = tmp_path / "증거설명서_SAMPLE_.md"
-    ged.main(["--output", str(output), "--allow-sample"])
-    md = output.read_text(encoding="utf-8")
-    assert "법원 제출 금지" in md, "샘플 문서에 워터마크 배너가 없음"
-    assert "[SAMPLE]" in md
+    output = tmp_path / "sample.md"
+    ged.main(["-o", str(output), "--allow-sample"])
+    text = output.read_text(encoding="utf-8")
+    assert "법원 제출 금지" in text and "[SAMPLE]" in text
 
 
 def test_sample_without_flag_is_refused(tmp_path):
-    """--allow-sample 없이는 샘플 생성을 거부해야 한다 (exit 2)."""
-    import pytest as _pytest
-
-    output = tmp_path / "증거설명서.md"
-    with _pytest.raises(SystemExit) as exc:
-        ged.main(["--output", str(output)])
+    output = tmp_path / "sample.md"
+    with pytest.raises(SystemExit) as exc:
+        ged.main(["-o", str(output)])
     assert exc.value.code == 2
     assert not output.exists()
 
 
 def test_real_input_has_no_watermark(tmp_path):
-    """실제 증거 JSON으로 생성한 문서에는 워터마크가 없어야 한다."""
-    input_json = tmp_path / "evidence.json"
-    input_json.write_text(
-        '{"evidence_list": [{"label": "갑 제1호증", "title": "실제 증거", "sha256": "deadbeef"}]}',
-        encoding="utf-8",
-    )
-    output = tmp_path / "증거설명서.md"
-    ged.main(["--input-json", str(input_json), "--output", str(output)])
-    md = output.read_text(encoding="utf-8")
-    assert "법원 제출 금지" not in md
+    _, output, _ = run_doc(tmp_path, [{"sha256": "deadbeef"}])
+    assert "법원 제출 금지" not in output.read_text(encoding="utf-8")
+    assert "변호사 검토" in output.read_text(encoding="utf-8")
 
 
 def test_malformed_json_falls_back_to_sample_instead_of_crash(tmp_path):
-    """회귀: JSON 파싱 실패 시 트레이스백 크래시 대신 샘플+워터마크로 진행한다."""
-    input_json = tmp_path / "broken.json"
-    input_json.write_text("{ not valid json !!", encoding="utf-8")
-    output = tmp_path / "증거설명서_SAMPLE_.md"
-    ged.main(["--input-json", str(input_json), "--output", str(output), "--allow-sample"])
-    md = output.read_text(encoding="utf-8")
-    assert "법원 제출 금지" in md
+    manifest = tmp_path / "bad.json"
+    manifest.write_text("{broken")
+    output = tmp_path / "sample.md"
+    ged.main(["-i", str(manifest), "-o", str(output), "--allow-sample"])
+    assert "법원 제출 금지" in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("claimed", [None, "a" * 64, "matching"])
+def test_claimed_hash_is_recomputed(tmp_path, claimed):
+    source = tmp_path / "source.txt"
+    source.write_text("synthetic source")
+    actual = _sha256(source)
+    claimed = actual if claimed == "matching" else claimed
+    _, _, result = run_doc(tmp_path, [{"file_path": source.name, "sha256": claimed}])
+    item = json.loads(result.read_text())["evidence_list"][0]
+    assert item["sha256"] == actual
+    assert item["claimed_sha256"] == claimed
+    assert item["hash_status"] == ("mismatch" if claimed and claimed != actual else "verified")
+
+
+def export_item(tmp_path):
+    source = tmp_path / "source.txt"
+    source.write_text("original synthetic evidence")
+    artifact = tmp_path / "export.txt"
+    artifact.write_text("synthetic derivative")
+    receipt = pr.make_receipt(source, "forensic-export", evidence_id="E-001")
+    receipt["source"]["path"] = source.name
+    receipt["artifacts"] = [{"path": artifact.name, "sha256": _sha256(artifact)}]
+    return {"file_path": artifact.name, "evidence_id": "E-001", "processing_receipt": receipt}
+
+
+def test_forensic_export_end_to_end_and_explicit_approval(tmp_path):
+    item = export_item(tmp_path)
+    code, output, result = run_doc(tmp_path, [item])
+    assert code == 0
+    report = json.loads(result.read_text())
+    generated = report["evidence_list"][0]
+    assert generated["processing_receipt_status"] == "verified"
+    assert generated["imported_processing_receipt"] == item["processing_receipt"]
+    receipt = generated["processing_receipt"]
+    assert pr.verify_receipt(receipt) == []
+    assert receipt["review"]["status"] == "pending"
+    assert receipt["artifacts"][0]["sha256"] == _sha256(output)
+    manifest = tmp_path / "evidence.json"
+    assert ged.main(["-i", str(manifest), "-o", str(output), "--output-json", str(result), "--reviewer", "Synthetic reviewer"]) == 0
+    approved = json.loads(result.read_text())["evidence_list"][0]["processing_receipt"]
+    assert approved["review"]["status"] == "approved"
+    assert approved["review"]["reviewer"] == "Synthetic reviewer"
+
+
+@pytest.mark.parametrize("change", ["changed", "missing", "unrelated", "id", "malformed", "partial"])
+def test_invalid_export_never_verifies(tmp_path, change):
+    item = export_item(tmp_path)
+    if change == "changed":
+        (tmp_path / "source.txt").write_text("changed synthetic source")
+    elif change == "missing":
+        (tmp_path / "source.txt").unlink()
+    elif change == "unrelated":
+        (tmp_path / "other.txt").write_text("unrelated")
+        item["file_path"] = "other.txt"
+    elif change == "id":
+        item["evidence_id"] = "E-002"
+    elif change == "malformed":
+        item["processing_receipt"] = {"source": []}
+    else:
+        item["processing_receipt"]["status"] = "partial"
+    code, _, result = run_doc(tmp_path, [item])
+    assert code == 1
+    generated = json.loads(result.read_text())["evidence_list"][0]
+    assert generated["processing_receipt_status"] == "unverified"
+    receipt = generated["processing_receipt"]
+    if receipt:
+        with pytest.raises(ValueError):
+            pr.approve_receipt(receipt, "Synthetic reviewer")
+
+
+def test_input_and_source_output_collisions(tmp_path):
+    item = export_item(tmp_path)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"items": [item]}))
+    before = manifest.read_bytes()
+    assert ged.main(["-i", str(manifest), "-o", str(manifest)]) == 2
+    assert manifest.read_bytes() == before
+    source = tmp_path / "source.txt"
+    before = source.read_bytes()
+    assert ged.main(["-i", str(manifest), "-o", str(source)]) == 2
+    assert source.read_bytes() == before
+
+
+def test_no_cwd_fallback_for_missing_relative_source(tmp_path, monkeypatch):
+    source = tmp_path / "source.txt"
+    source.write_text("not in manifest directory")
+    base = tmp_path / "manifest"
+    base.mkdir()
+    monkeypatch.chdir(tmp_path)
+    items = [{"file_path": "source.txt"}]
+    ged.resolve_evidence_hashes(items, str(base))
+    assert items[0]["sha256"] is None

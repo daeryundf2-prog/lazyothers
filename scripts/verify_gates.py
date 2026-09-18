@@ -223,6 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     # --- P3 golden + 수치 -------------------------------------------------
     failures = _checks.run_checks(before, after)
     warn = warn or bool(failures)
+    abort = abort or any(f.code in {"quote_altered", "protected_content_altered", "numeric_association_changed"} for f in failures)
     report["golden"] = [{"code": f.code, "message": f.message} for f in failures]
     if failures:
         print(f"[P3 golden] FAIL — {len(failures)}건:")
