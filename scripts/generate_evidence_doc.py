@@ -92,7 +92,13 @@ def generate_evidence_markdown(case_info, evidence_list, output_path, is_sample=
         lines.append(f"**{label}:** {_escape_cell(case_info.get(key, '미상'))}")
     lines += ["", "| 순번 | evidence_id | 서증부호 | 서증명 | 작성자 / 일자 | 입증취지 | 측정 SHA-256 | 기재 SHA-256 | 검증 상태 |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
     for idx, item in enumerate(evidence_list, 1):
-        values = [idx, item.get("evidence_id", "unknown"), item.get("label", f"갑 제{idx}호증"), item.get("title", f"증거물_{idx}"), f"{item.get('author', '작성자불상')} / {item.get('date', '미상')}", item.get("purpose", "입증취지 미제공"), item.get("verified_sha256") or "N/A (file not found)", item.get("claimed_sha256") or "unknown", f"hash={item.get('hash_status', 'unknown')}; receipt={item.get('processing_receipt_status', 'unverified')} (미검증 근거는 검증됨이 아님)"]
+        date = item.get('date') or '미상'
+        basis = item.get('date_basis')
+        if basis == 'filesystem_mtime_not_authorship':
+            date = f"{date} (파일시스템 mtime — 작성일자 아님)"
+        elif basis:
+            date = f"{date} ({basis})"
+        values = [idx, item.get("evidence_id", "unknown"), item.get("label", f"갑 제{idx}호증"), item.get("title", f"증거물_{idx}"), f"{item.get('author', '작성자불상')} / {date}", item.get("purpose", "입증취지 미제공"), item.get("verified_sha256") or "N/A (file not found)", item.get("claimed_sha256") or "unknown", f"hash={item.get('hash_status', 'unknown')}; receipt={item.get('processing_receipt_status', 'unverified')} (미검증 근거는 검증됨이 아님)"]
         lines.append("| " + " | ".join(_escape_cell(v) for v in values) + " |")
         for warning in item.get("verification_warnings", []):
             lines.append(f"\n> {_escape_cell(item.get('evidence_id'))}: {_escape_cell(warning)}\n")
