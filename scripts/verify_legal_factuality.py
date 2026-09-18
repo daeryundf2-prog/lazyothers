@@ -1015,7 +1015,8 @@ def main(argv: list[str] | None = None) -> int:
             for warn in result["warnings"]:
                 print(f"  - WARN: {warn}", file=sys.stderr)
         if result["verdict"] == "PASS":
-            print(f"[PASS] All {len(result['cited_statutes'])} statutes and {len(result['cited_precedents'])} precedents grounded.")
+            print(f"[PASS] {len(result['cited_statutes'])} statutes and {len(result['cited_precedents'])} precedents passed format/bounds checks "
+                  "(형식·상한·로컬 대조만 검사 — 1차 원문 인증 아님; source_verified=false).")
 
     if result["errors"] or (args.strict and result["warnings"]):
         return 1
