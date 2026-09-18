@@ -87,8 +87,14 @@ def validate_receipt(receipt):
             errors.append(f"Invalid review {key}")
     if review.get("status") == "approved" and (not review.get("reviewer") or not review.get("reviewed_at")):
         errors.append("Approval requires reviewer and reviewed_at")
+    if review.get("status") == "pending" and (review.get("reviewer") is not None or review.get("reviewed_at") is not None):
+        errors.append("Pending review must have null reviewer and reviewed_at")
+    timestamps_nullable = receipt.get("status") == "not_measured"
     for key, value in [("started_at", receipt.get("started_at")), ("finished_at", receipt.get("finished_at")), ("reviewed_at", review.get("reviewed_at"))]:
-        if key == "reviewed_at" and value is None:
+        if value is None:
+            if key == "reviewed_at" or timestamps_nullable:
+                continue
+            errors.append(f"Invalid UTC {key}")
             continue
         try:
             date = datetime.fromisoformat(value.replace("Z", "+00:00"))

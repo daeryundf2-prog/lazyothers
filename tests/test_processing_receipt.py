@@ -106,3 +106,20 @@ def test_receipt_links_evidence_id(evidence):
     receipt = make(evidence)
     assert receipt["evidence_id"] == "갑 제1호증"
     assert receipt["status"] == "complete"
+
+
+def test_null_timestamps_only_when_not_measured(evidence):
+    receipt = make(evidence)
+    receipt["status"] = "not_measured"
+    receipt["exit_code"] = None
+    receipt["started_at"] = receipt["finished_at"] = None
+    assert pr.validate_receipt(receipt) == []
+    for status in ("complete", "partial", "failed"):
+        receipt["status"] = status
+        assert any("Invalid UTC" in e for e in pr.validate_receipt(receipt)), status
+
+
+def test_pending_review_rejects_declared_reviewer(evidence):
+    receipt = make(evidence)
+    receipt["review"]["reviewer"] = "caller-claimed"
+    assert any("Pending review" in e for e in pr.validate_receipt(receipt))
