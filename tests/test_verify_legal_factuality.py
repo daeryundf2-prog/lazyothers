@@ -619,6 +619,16 @@ def test_mcp_matcher_validation(tmp_path):
     mcp_cache = {"statute": "우주항공보안법", "articles": ["제12조", "제13조"]}
     assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", mcp_cache) is True
     assert vlf.match_mcp_statute_cache("우주항공보안법 제99조", mcp_cache) is False
+    # 1a. 회귀: 서로 다른 레코드의 법명+조문을 조합(교차 곱)해서 통과시키지 않는다
+    cross = [{"law": "가상법", "article": "제1조"}, {"law": "다른법", "article": "제99조"}]
+    assert vlf.match_mcp_statute_cache("가상법 제99조", cross) is False
+    # 1b. 회귀: 파손된 캐시(파싱 불가 문자열)는 거짓 검증 근거가 되지 않는다
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", "{broken json") is False
+    # 1c. 같은 레코드(객체) 안에서 법명+조문이 함께 있어야 한다
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제13조", {"results": [mcp_cache]}) is True
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", {"statute": "우주항공보안법"}) is False
+    # 1d. 회귀: 전역 부분열 매칭은 더 이상 근거가 아니다
+    assert vlf.match_mcp_statute_cache("우주항공보안법 제12조", "우주항공보안법 제12조 문자열만 있음") is False
 
     # 2. verify_legal_text with mcp_cache suppresses ungrounded warnings
     text = "피고는 우주항공보안법 제12조를 위반하였다."

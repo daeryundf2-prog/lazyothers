@@ -156,3 +156,17 @@ def test_csv_formula_injection_neutralized():
     assert "'@x" in out
     assert "\n-123" in out, "일반 음수는 그대로 둔다"
     assert "'-SUM(A1)" in out
+
+
+def test_sql_comment_tokenizer_preserves_strings_and_identifiers():
+    sql = "SELECT 'a/*text*/b' AS col, \"ident--x\" FROM t -- trailing\n/* block */"
+    cleaned = qe.check_statement(sql)
+    assert "'a/*text*/b'" in cleaned
+    assert '"ident--x"' in cleaned
+    assert "-- trailing" not in cleaned
+    assert "/* block */" not in cleaned
+    assert qe.strip_sql_comments("SELECT 'a--b'") == "SELECT 'a--b'"
+    with pytest.raises(ValueError):
+        qe.check_statement("SELECT /* unterminated")
+    with pytest.raises(ValueError):
+        qe.check_statement("SELECT 'unterminated")

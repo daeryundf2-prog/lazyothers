@@ -38,7 +38,39 @@ _ALLOWED_PREFIXES = ("select", "pragma", "explain", "with")
 _WITH_MUTATION_RE = re.compile(
     r"\b(delete|insert|update|attach|detach|create|drop|alter|vacuum)\b", re.IGNORECASE
 )
-_SQL_COMMENT_RE = re.compile(r"(--[^\n]*|/\*.*?\*/)", re.DOTALL)
+def sql_tokens(sql: str):
+    i = 0
+    while i < len(sql):
+        start = i
+        if sql.startswith("--", i):
+            end = sql.find("\n", i)
+            i = len(sql) if end < 0 else end
+            yield "comment", sql[start:i]
+        elif sql.startswith("/*", i):
+            end = sql.find("*/", i + 2)
+            if end < 0:
+                raise ValueError("Unclosed SQL comment")
+            i = end + 2
+            yield "comment", sql[start:i]
+        elif sql[i] in "'\"`[":
+            closing = "]" if sql[i] == "[" else sql[i]
+            i += 1
+            while i < len(sql):
+                if sql[i] == closing:
+                    i += 1
+                    if closing != "]" and i < len(sql) and sql[i] == closing:
+                        i += 1
+                        continue
+                    break
+                i += 1
+            else:
+                raise ValueError("Unclosed SQL quote")
+            yield "quoted", sql[start:i]
+        else:
+            i += 1
+            yield "code", sql[start:i]
+
+
 _ENCODINGS = ("utf-8", "utf-16-le", "utf-16-be")
 _CONTEXT_BYTES = 60
 _CELL_LIMIT = 80
@@ -63,9 +95,18 @@ def _quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def strip_sql_comments(sql: str) -> str:
+    """문자열·인용 식별자 내부는 건드리지 않고 주석만 제거한다.
+
+    정규식 기반 치환은 `'a/*text*/b'` 같은 리터럴 내부의 `/* */`도 지워
+    쿼리 의미를 바꾼다. 토크나이저로 quoted 세그먼트를 보존한다.
+    """
+    return "".join(" " if kind == "comment" else seg for kind, seg in sql_tokens(sql))
+
+
 def check_statement(sql: str) -> str:
     """단일 문장 + 화이트리스트 접두어 검사. 위반 시 ValueError."""
-    cleaned = _SQL_COMMENT_RE.sub(" ", sql).strip().rstrip(";").strip()
+    cleaned = strip_sql_comments(sql).strip().rstrip(";").strip()
     if not cleaned:
         raise ValueError("빈 SQL 문입니다")
     first = cleaned.split(None, 1)[0].lower()
@@ -74,7 +115,8 @@ def check_statement(sql: str) -> str:
             f"금지된 문입니다: {first.upper()} — 읽기전용 증거 DB에는 "
             f"SELECT/PRAGMA/EXPLAIN/WITH만 허용됩니다"
         )
-    if first == "with" and _WITH_MUTATION_RE.search(cleaned):
+    code = "".join(segment if kind == "code" else " " for kind, segment in sql_tokens(cleaned))
+    if first == "with" and _WITH_MUTATION_RE.search(code):
         raise ValueError(
             "금지된 문입니다: WITH 접두 문에 변경 구문(DELETE/INSERT/UPDATE 등)이 "
             "포함되어 있습니다 — 읽기전용 증거 DB에서는 허용되지 않습니다"

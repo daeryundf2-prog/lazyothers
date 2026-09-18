@@ -197,34 +197,39 @@ STATUTE_BOUNDS = _load_statute_bounds()
 STATUTE_SUBARTICLES = _load_statute_subarticles()
 
 
-def match_mcp_statute_cache(citation: str, mcp_cache: dict | list | str | None) -> bool:
-    """korean_law MCP 응답 캐시 또는 데이터 구조에서 특정 조문/법령 인용이 실존하는지 매칭한다."""
-    if not mcp_cache:
-        return False
-    if isinstance(mcp_cache, str):
+def match_mcp_statute_cache(citation: str, mcp_cache: dict | list | str | Path | None) -> bool:
+    if isinstance(mcp_cache, (str, Path)):
         try:
-            p = Path(mcp_cache)
-            if p.is_file():
-                mcp_cache = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+            raw = str(mcp_cache)
+            if raw.lstrip().startswith(("{", "[")):
+                mcp_cache = json.loads(raw)
             else:
-                mcp_cache = json.loads(mcp_cache)
-        except Exception:
-            return citation in str(mcp_cache)
+                mcp_cache = json.loads(Path(raw).read_text(encoding="utf-8"))
+        except (OSError, ValueError, RecursionError):
+            return False
+    normalize = lambda value: re.sub(r"\s+", "", value) if isinstance(value, str) else ""
+    match = re.fullmatch(r"([가-힣]+)(제\d+조(?:의\d+)?)", normalize(citation))
+    if not match:
+        return False
+    law, article = match.groups()
 
-    cache_str = json.dumps(mcp_cache, ensure_ascii=False) if isinstance(mcp_cache, (dict, list)) else str(mcp_cache)
-    clean_citation = re.sub(r"\s+", "", citation)
-    clean_cache = re.sub(r"\s+", "", cache_str)
-    if clean_citation in clean_cache:
-        return True
+    def matches(node, depth=0):
+        if depth > 32:
+            return False
+        if isinstance(node, list):
+            return any(matches(item, depth + 1) for item in node)
+        if not isinstance(node, dict):
+            return False
+        laws = [normalize(node[k]) for k in ("law", "statute", "law_name", "법령명") if k in node]
+        if laws and all(value == law for value in laws):
+            articles = node.get("articles", node.get("article", []))
+            if not isinstance(articles, list):
+                articles = [articles]
+            if any(normalize(value) == article for value in articles):
+                return True
+        return any(matches(value, depth + 1) for value in node.values() if isinstance(value, (dict, list)))
 
-    # 법명과 조문 번호가 분리되어 저장된 JSON 구조(statute/articles 등) 대응
-    m = re.match(r"^([가-힣\s]+?)(제\s*\d+\s*(?:조(?:의\s*\d+)?))", citation)
-    if m:
-        statute_part = re.sub(r"\s+", "", m.group(1))
-        art_part = re.sub(r"\s+", "", m.group(2))
-        if statute_part in clean_cache and art_part in clean_cache:
-            return True
-    return False
+    return matches(mcp_cache)
 
 def _make_statute_pattern(statute_name: str) -> re.Pattern:
     clean_name = re.sub(r"\s+", "", statute_name)
@@ -517,12 +522,13 @@ def verify_legal_text(
     # 1-1. 미등재 법령 조문 인용: 상한 딕셔너리에 없는 법명 + "제N조" 패턴은
     # 자동 대조가 불가능한 ungrounded 인용이다. 날조를 놓치지 않도록 경고(WARN).
     # 단, mcp_cache에 해당 조문이 존재하는 경우 경고를 해제한다.
-    unknown_law_re = re.compile(rf"(?<![가-힣])([가-힣]{{2,15}}법)\s*제\s*\d+\s*조")
+    unknown_law_re = re.compile(r"(?<![가-힣])([가-힣]{2,15}법)\s*제\s*\d+\s*조(?:\s*의\s*\d+)?")
     known_clean = {re.sub(r"\s+", "", name) for name in STATUTE_BOUNDS}
     for m in unknown_law_re.finditer(text):
         law_clean = re.sub(r"\s+", "", m.group(1))
         if law_clean not in known_clean:
             ref_str = m.group(0)
+            cited_statutes.append(ref_str)
             if mcp_cache and match_mcp_statute_cache(ref_str, mcp_cache):
                 continue
             warnings.append(
@@ -715,7 +721,11 @@ def verify_legal_text(
             warnings.append("법률 문서 초안에 필수 법적 고지(변호사 검토 안내)가 누락되었습니다.")
 
     verdict = "FAIL" if errors else ("WARN" if warnings else "PASS")
+    cache_matched = [citation for citation in cited_statutes if match_mcp_statute_cache(citation, mcp_cache)]
     return {
+        "validation_scope": "format_bounds_and_local_grounding_not_source_authentication",
+        "source_verified": False,
+        "cache_matched_statutes": sorted(set(cache_matched)),
         "verdict": verdict,
         "errors": errors,
         "warnings": warnings,
