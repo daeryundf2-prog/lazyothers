@@ -7,7 +7,7 @@
 
 입력 JSON 구조:
 {
-  "type": "소장",                      // 소장|준비서면|고소장|내용증명
+  "type": "소장",                      // 소장|준비서면|고소장|내용증명|업무보고서
   "case_info": {
     "court": "서울중앙지방법원",
     "case_number": "2024가합12345",   // 소장은 빈 값(제출 시 배호)
@@ -47,7 +47,7 @@ except ImportError:
     except ImportError:
         verify_legal_text = None
 
-DRAFT_TYPES = ("소장", "준비서면", "고소장", "내용증명")
+DRAFT_TYPES = ("소장", "준비서면", "고소장", "내용증명", "업무보고서")
 
 DISCLAIMER = (
     "> ⚠️ **본 문서는 AI 생성 초안입니다. 변호사의 검토·수정 없이 법원이나 "
@@ -202,8 +202,62 @@ def render_naeyong(case_info: dict, claims: list[str], facts: list[dict], eviden
     return lines
 
 
+def _ministry_header(case_info: dict) -> list[str]:
+    """행안부 공문서 상단 표기 (문서번호/시행일자/수신/제목)."""
+    lines = []
+    if case_info.get("doc_number"):
+        lines.append(f"문서번호: {case_info['doc_number']}")
+    lines.append(f"시행일자: {case_info.get('doc_date') or datetime.now().strftime('%Y-%m-%d')}")
+    if case_info.get("recipient"):
+        lines.append(f"수    신: {case_info['recipient']}")
+    if case_info.get("reference"):
+        lines.append(f"참    조: {case_info['reference']}")
+    lines.append(f"제    목: {case_info.get('title') or '{보고서 제목}'}")
+    return lines
+
+
+_HANGUL_SEQ = "가나다라마바사아자차카타파하"
+
+
+def render_ministry(case_info: dict, claims: list[str], facts: list[dict], evidence_list: list[dict], strict_evidence: bool = False) -> list[str]:
+    """행안부 편람 표준 업무보고서 프리셋 (kordoc `ministry` 체계).
+
+    상단 표기 + `1. → 가. → 1) → 가)` 위계. facts[].heading 은 `N.` 수준,
+    paragraphs 는 `가.`/`나.`/`다.` 자동 순번, claims 는 보고 요지로 둔다.
+    """
+    lines = _ministry_header(case_info) + [""]
+    if claims:
+        lines.append("【보고 요지】")
+        for i, c in enumerate(claims, 1):
+            lines.append(f"{i}. {c}")
+        lines.append("")
+    for idx, fact in enumerate(facts, 1):
+        if isinstance(fact, str):
+            lines.append(f"{idx}. {fact}")
+            continue
+        heading = fact.get("heading") or f"항목 {idx}"
+        lines.append(f"{idx}. {heading}")
+        paragraphs = fact.get("paragraphs") or ([fact["text"]] if fact.get("text") else [])
+        for pidx, para in enumerate(paragraphs):
+            marker = _HANGUL_SEQ[pidx] if pidx < len(_HANGUL_SEQ) else f"가-{pidx + 1}"
+            lines.append(f"   {marker}. {para}")
+        body = "\n".join(str(t) for t in paragraphs)
+        line = method_line(body, fact.get("evidence") or [], build_evidence_index(evidence_list))
+        if strict_evidence and not line:
+            raise ValueError(f"Strict Evidence Gate: 보고 항목({heading})에 근거 인용이 없습니다.")
+        if line:
+            lines.append(f"   {line}")
+        lines.append("")
+    if evidence_list:
+        lines += ["붙임: 증거 목록 1부."]
+        lines += _evidence_appendix(evidence_list)
+    lines += ["", "끝."]
+    return lines
+
+
 RENDERERS = {
     "소장": render_sojang,
+    "업무보고서": render_ministry,
     "준비서면": render_junbi,
     "고소장": render_goso,
     "내용증명": render_naeyong,
@@ -253,7 +307,7 @@ def generate(
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="전자소송 규격 법률 문서 초안 생성기 (소장/준비서면/고소장/내용증명)")
+    p = argparse.ArgumentParser(description="전자소송 규격 법률 문서 초안 생성기 (소장/준비서면/고소장/내용증명/업무보고서)")
     p.add_argument("--input-json", "-i", required=True, help="초안 재료 JSON (type/case_info/claims/facts/evidence_list)")
     p.add_argument("--output", "-o", default="", help="출력 마크다운 경로 (미지정 시 stdout)")
     p.add_argument("--source", help="입증 원문 또는 사실관계 원본 파일 (.txt, .md, .json)")

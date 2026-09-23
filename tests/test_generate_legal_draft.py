@@ -69,6 +69,43 @@ def test_all_document_types_render():
         assert gld.DISCLAIMER in md
 
 
+def test_ministry_report_preset_renders_hierarchy():
+    """업무보고서 타입은 행안부 상단 표기와 1. → 가. 위계를 출력한다."""
+    data = {
+        "type": "업무보고서",
+        "case_info": {
+            "doc_number": "감정-2026-15호",
+            "recipient": "법무법인 대륜",
+            "title": "분석 진행 상황 업무보고",
+        },
+        "claims": ["이번 주 디스크 이미징 및 타임라인 병합을 완료하였음을 보고드립니다."],
+        "facts": [
+            {
+                "heading": "분석 진행 현황",
+                "paragraphs": [
+                    "대상 디스크 이미지 획득 및 해시 검증을 완료하였다.",
+                    "이벤트 로그 타임라인 병합을 진행 중이다.",
+                ],
+            },
+        ],
+        "evidence_list": [],
+    }
+    md = gld.generate(data)
+    assert "문서번호: 감정-2026-15호" in md
+    assert "수    신: 법무법인 대륜" in md
+    assert "제    목: 분석 진행 상황 업무보고" in md
+    assert "1. 분석 진행 현황" in md
+    assert "가. 대상 디스크 이미지" in md
+    assert "나. 이벤트 로그 타임라인" in md
+    assert "끝." in md
+
+
+def test_ministry_report_title_placeholder_when_missing():
+    data = {"type": "업무보고서", "case_info": {}, "claims": [], "facts": []}
+    md = gld.generate(data)
+    assert "{보고서 제목}" in md
+
+
 def test_invalid_type_rejected():
     data = json.loads(json.dumps(BASE))
     data["type"] = "이혼소장"
