@@ -142,7 +142,6 @@ def test_stamp_branch_evidence(tmp_path):
     assert "갑 제1호증의 3" in page0
 
 
-
 def test_stamp_avoids_existing_annot_zone(tmp_path):
     """상단 우측에 기존 주석/위젯이 있으면 표찰 박스가 겹치지 않고 아래로 이동한다."""
     src = tmp_path / "annot_src.pdf"
@@ -174,3 +173,4 @@ def test_stamp_clean_page_stays_on_top(tmp_path):
     )
     doc.close()
     assert y == 20 and not overlapped
+
