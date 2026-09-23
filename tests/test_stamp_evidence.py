@@ -114,3 +114,30 @@ def test_tiny_page_degrades_gracefully(tmp_path):
 
     out = tmp_path / "tiny_stamped.pdf"
     assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), "갑 제1호증", allow_broken_font=True)
+
+
+def test_format_evidence_label_branch():
+    """가지번호 포맷팅 단위 테스트."""
+    assert stamp_evidence.format_evidence_label("갑 제1호증", 2) == "갑 제1호증의 2"
+    assert stamp_evidence.format_evidence_label("을 제5호증", 1) == "을 제5호증의 1"
+    assert stamp_evidence.format_evidence_label("갑 제1호증", None) == "갑 제1호증"
+    # 이미 '의 2'가 붙어있는 경우 중복 추가 방지
+    assert stamp_evidence.format_evidence_label("갑 제1호증의 2", 2) == "갑 제1호증의 2"
+
+
+def test_stamp_branch_evidence(tmp_path):
+    """가지번호가 지정된 서증 표찰 스탬핑 테스트."""
+    font = stamp_evidence._get_korean_font()
+    if font is None:
+        pytest.skip("Korean font not available on this machine")
+
+    src = _make_pdf(tmp_path / "branch_src.pdf")
+    out = tmp_path / "branch_stamped.pdf"
+    label = stamp_evidence.format_evidence_label("갑 제1호증", 3)
+    assert stamp_evidence.stamp_pdf_pymupdf(str(src), str(out), label)
+
+    doc = fitz.open(str(out))
+    page0 = _norm(doc[0].get_text())
+    doc.close()
+    assert "갑 제1호증의 3" in page0
+

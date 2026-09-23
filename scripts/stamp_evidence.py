@@ -6,6 +6,7 @@ stamp_evidence.py - 대법원 전자소송(ECFS) 규격 서증(갑/을 제O호�
 
 import os
 import sys
+import re
 import argparse
 
 
@@ -32,6 +33,16 @@ def _label_box_width(label: str, fontsize: float = 11.0, min_width: float = 110.
     """
     em = sum(1.0 if ord(ch) > 0x2E7F else 0.55 for ch in label)
     return max(min_width, em * fontsize + 18.0)
+
+
+def format_evidence_label(label: str, branch: int | None = None) -> str:
+    """서증 부호와 가지번호를 표준 대법원 전자소송 형식(예: '갑 제1호증의 2')으로 포맷팅."""
+    label = label.strip()
+    if branch is not None and branch > 0:
+        # 이미 '의 O'가 붙어있는지 확인
+        if not re.search(r"의\s*\d+$", label):
+            label = f"{label}의 {branch}"
+    return label
 
 
 def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True, right_margin: float = 25.0, allow_broken_font: bool = False):
@@ -148,6 +159,7 @@ def main():
     parser.add_argument("input_pdf", help="원본 PDF 파일 경로")
     parser.add_argument("--output", "-o", required=True, help="스탬핑 완료된 출력 PDF 경로")
     parser.add_argument("--label", "-l", required=True, help="서증 부호 및 번호 (예: '갑 제1호증', '을 제2호증의 1')")
+    parser.add_argument("--branch", "-b", type=int, default=None, help="가지번호 (예: 1 지정 시 '갑 제1호증의 1')")
     parser.add_argument("--prefix", "-p", default="P", help="Bates 페이지 접두사 (기본: 'P')")
     parser.add_argument("--start", "-s", type=int, default=1, help="시작 페이지 번호 (기본: 1)")
     parser.add_argument("--first-only", action="store_true", help="첫 페이지만 표찰 (미지정 시 전 페이지 표찰)")
@@ -161,11 +173,12 @@ def main():
         sys.exit(1)
 
     all_pages = not args.first_only
+    final_label = format_evidence_label(args.label, args.branch)
 
     success = stamp_pdf_pymupdf(
         input_pdf=args.input_pdf,
         output_pdf=args.output,
-        label=args.label,
+        label=final_label,
         bates_prefix=args.prefix,
         start_page=args.start,
         all_pages=all_pages,
