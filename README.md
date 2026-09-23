@@ -50,7 +50,7 @@
     *   **devresourc.es**: UI 컴포넌트(shadcn/ui), 벡터 아이콘(Lucide), 색상 팔레트(Realtime Colors), Tailwind/Git 치트시트 모음
 
 ### 6. 확장 MCP 도구 모음 (Bundled MCP Tools)
-*   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.10.0 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
+*   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.14.2 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
 *   **`context7`**: 공식 라이브러리 및 최신 프레임워크 실시간 문서 조회 — Upstash 공식 패키지 (`npx -y @upstash/context7-mcp@4.0.4`, 버전 고정)
 *   **`playwright`**: 웹 자동화·채증 — 게시물·SNS·기사 스크린샷/PDF 캡처 (microsoft `@playwright/mcp@0.0.79`, 버전 고정). 캡처 직후 `certify_evidence_file.py`로 인증
 *   **`sequential-thinking`**: 순차적 심층 추론 — 포렌식 인과관계 역추적·다층 쟁점 분석 (modelcontextprotocol 공식 서버 `@modelcontextprotocol/server-sequential-thinking@2026.7.4`, 버전 고정)

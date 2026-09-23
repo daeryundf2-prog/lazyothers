@@ -2,8 +2,8 @@
   "mcpServers": {
     "kordoc": {
       "command": "npx",
-      "args": ["-y", "-p", "kordoc@4.10.0", "kordoc-mcp"],
-      "description": "한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱·서식입력·직인·비식별화 — npm kordoc 패키지의 MCP 서버 바이너리(kordoc-mcp). 법률 문서 무결성을 위해 버전 고정(kordoc@4.10.0). 툴 스펙은 mcp/kordoc/*.json 참조"
+      "args": ["-y", "-p", "kordoc@4.14.2", "kordoc-mcp"],
+      "description": "한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱·서식입력·직인·비식별화 — npm kordoc 패키지의 MCP 서버 바이너리(kordoc-mcp). 법률 문서 무결성을 위해 버전 고정(kordoc@4.14.2). 툴 스펙은 mcp/kordoc/*.json 참조"
     },
     "context7": {
       "command": "npx",
