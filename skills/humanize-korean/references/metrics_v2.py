@@ -500,6 +500,28 @@ def deul_overuse_rate(text: str) -> float:
     return hits / len(toks)
 
 
+def cross_paragraph_burstiness(text: str) -> float:
+    """문단 간 리듬 분산 지표 (avoid-ai-writing Cross-paragraph Burstiness).
+
+    문단별 평균 문장 길이(어절 수)를 구한 뒤 그 모집단 표준편차를 반환한다.
+    AI 생성문은 문단마다 비슷한 길이의 문장을 반복해 이 값이 낮게(단조롭게)
+    나오는 경향이 있다. 문단이 2개 미만이거나 빈 입력이면 0.0.
+    """
+    paragraphs = _split_paragraphs(text)
+    means: list[float] = []
+    for p in paragraphs:
+        sents = _split_sentences(p)
+        if not sents:
+            continue
+        means.append(mean(len(_all_tokens(s)) for s in sents))
+    if len(means) < 2:
+        return 0.0
+    try:
+        return pstdev(means)
+    except StatisticsError:
+        return 0.0
+
+
 def relative_clause_nesting(text: str) -> int:
     """T5: count of sentences with relative-clause nesting depth >= 3.
 
@@ -742,6 +764,7 @@ def compute_all_v2(
         "pronoun_density": pronoun_density(text),
         "deul_overuse_rate": deul_overuse_rate(text),
         "relative_clause_nesting": relative_clause_nesting(text),
+        "cross_paragraph_burstiness": cross_paragraph_burstiness(text),
         "have_make_literal_count": have_make_literal_count(text),
         "double_particle_count": double_particle_count(text),
         "progressive_aspect_rate": progressive_aspect_rate(text),

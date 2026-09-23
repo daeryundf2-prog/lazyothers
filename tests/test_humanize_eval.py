@@ -270,3 +270,31 @@ def test_reassembly_rejects_changed_evidence(tmp_path):
     (tmp_path / 'rewrite.txt').write_text(text, encoding='utf-8')
     assert assembler.main(['--run-dir', str(tmp_path)]) == 0
     assert (tmp_path / '03_reassembled.md').read_text(encoding='utf-8') == text
+
+
+def test_cross_paragraph_burstiness_uniform_text_is_low():
+    """문단마다 문장 길이가 균일한(AI스러운) 텍스트는 분산이 0에 가깝다."""
+    uniform = "\n\n".join(
+        "이것은 동일한 길이의 문장입니다. 역시 비슷한 길이의 문장입니다."
+        for _ in range(4)
+    )
+    varied = (
+        "짧다.\n\n"
+        "이 문단은 첫 문장이 꽤 길고 설명이 덧붙는다. 두 번째 문장도 길다. 그리고 더 길어진다.\n\n"
+        "끝."
+    )
+    low = metrics_v2.cross_paragraph_burstiness(uniform)
+    high = metrics_v2.cross_paragraph_burstiness(varied)
+    assert low == 0.0
+    assert high > low
+
+
+def test_cross_paragraph_burstiness_wired_into_compute_all_v2():
+    result = metrics_v2.compute_all_v2("문장 하나.\n\n다른 문장이 조금 더 길게 이어진다.")
+    assert "cross_paragraph_burstiness" in result["v2_metrics"]
+    assert "cross_paragraph_burstiness" in result["v2_z_scores"]
+
+
+def test_cross_paragraph_burstiness_empty_input():
+    assert metrics_v2.cross_paragraph_burstiness("") == 0.0
+    assert metrics_v2.cross_paragraph_burstiness("한 문단만 있다.") == 0.0
