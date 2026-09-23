@@ -265,6 +265,68 @@ def parse_pdf(file_path: str) -> dict:
     }
 
 
+def mineru_available() -> tuple[bool, str]:
+    """MinerU BYOB 게이트 — 바이너리/패키지와 GPU(또는 명시적 CPU 허용)를 확인.
+
+    MinerU/Popo는 4B급 모델 파이프라인이라 CPU 추론은 사실상 비실용적이다.
+    MINERU_ALLOW_CPU=1로 명시 허용한 경우에만 CPU 경로를 통과시킨다.
+    반환: (사용 가능 여부, 사유 문자열)
+    """
+    import importlib.util
+    import shutil
+    has_bin = shutil.which("mineru") is not None
+    has_pkg = importlib.util.find_spec("magic_pdf") is not None
+    if not (has_bin or has_pkg):
+        return False, "mineru 바이너리/magic_pdf 패키지 없음 (pip install -U 'mineru[core]')"
+    if os.environ.get("MINERU_ALLOW_CPU") == "1":
+        return True, "cpu-allowed"
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return True, "cuda"
+        return False, "GPU 없음 — MINERU_ALLOW_CPU=1로 CPU 강행 가능 (느림)"
+    except ImportError:
+        # torch 미설치 — 바이너리 경로는 자체 런타임을 쓸 수 있으므로 통과
+        return (True, "binary") if has_bin else (False, "torch 미설치 — GPU 확인 불가")
+
+
+def parse_pdf_mineru(file_path: str) -> dict:
+    """MinerU(BYOB)로 스캔본/복합 레이아웃 PDF를 마크다운으로 변환해 흡수한다.
+
+    기본 파서가 텍스트 레이어를 읽는 것과 달리 레이아웃·표 경계를 복원한다.
+    결과가 원본 이미지 기반 추론물이므로 원본 대조 주석을 metadata에 남긴다.
+    """
+    import subprocess
+    import tempfile
+    ok, reason = mineru_available()
+    if not ok:
+        return {"file_path": file_path, "format": "PDF",
+                "error": f"MinerU 사용 불가: {reason}"}
+    with tempfile.TemporaryDirectory() as tmp:
+        proc = subprocess.run(
+            ["mineru", "-p", file_path, "-o", tmp],
+            capture_output=True, text=True, timeout=3600)
+        if proc.returncode != 0:
+            return {"file_path": file_path, "format": "PDF",
+                    "error": f"mineru failed: {proc.stderr.strip()[:300]}"}
+        mds = sorted(Path(tmp).rglob("*.md"))
+        if not mds:
+            return {"file_path": file_path, "format": "PDF",
+                    "error": "mineru produced no markdown output"}
+        text = "\n\n".join(m.read_text(encoding="utf-8") for m in mds)
+    return {
+        "file_path": file_path,
+        "format": "PDF (MinerU)",
+        "sections": [],
+        "text": text,
+        "tables": [],
+        "metadata": {
+            "engine": "mineru",
+            "note": "MinerU 레이아웃 추론 결과 — 수치·표 경계는 원본 스캔 대조 필수",
+        },
+    }
+
+
 def parse_anydoc(file_path: str) -> dict:
     """Parse office documents, spreadsheets, presentations, and ebooks via Firecrawl AnyDoc."""
     ext = os.path.splitext(file_path)[1].lower()
@@ -368,6 +430,9 @@ def main():
     parser.add_argument("--markdown", "-m", action="store_true", help="결과를 마크다운 형식으로 출력")
     parser.add_argument("--strict", action="store_true",
                         help="HWP OLE 휴리스틱 추출(quality=rough)을 오류(exit 2)로 거부 (기본은 경고 유지)")
+    parser.add_argument("--engine", choices=["auto", "mineru"], default="auto",
+                        help="PDF 엔진 선택. mineru=스캔본·다단 표 복원 (BYOB, GPU 권장. "
+                             "MINERU_ALLOW_CPU=1로 CPU 강행)")
 
     args = parser.parse_args()
     file_path = os.path.abspath(args.input_file)
@@ -382,7 +447,7 @@ def main():
     elif ext == ".hwp":
         data = parse_hwp_legacy(file_path)
     elif ext == ".pdf":
-        data = parse_pdf(file_path)
+        data = parse_pdf_mineru(file_path) if args.engine == "mineru" else parse_pdf(file_path)
         if "error" in data:
             print(f"Error: {data['error']}", file=sys.stderr)
             sys.exit(1)

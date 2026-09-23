@@ -171,3 +171,39 @@ def test_anydoc_extensions_include_odp_without_duplicate_odt():
     # 소스 텍스트상 .odt 리터럴은 정확히 1회만 등장해야 함 (shadowing/중복 방지)
     src = (Path(__file__).resolve().parent.parent / "scripts" / "parse_korean_doc.py").read_text(encoding="utf-8")
     assert src.count('".odt"') == 1, "중복 .odt 리터럴 존재"
+
+
+def test_mineru_gate_returns_tuple():
+    """mineru_available()은 (bool, str) 튜플을 반환해야 한다(BYOB 게이트)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "parse_korean_doc",
+        str(Path(__file__).resolve().parent.parent / "scripts" / "parse_korean_doc.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    ok, reason = mod.mineru_available()
+    assert isinstance(ok, bool)
+    assert isinstance(reason, str) and reason
+
+
+def test_mineru_engine_without_install_fails_closed(tmp_path):
+    """--engine mineru 지정 시 MinerU 미설치 환경에서 fail-closed로 종료."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "parse_korean_doc",
+        str(Path(__file__).resolve().parent.parent / "scripts" / "parse_korean_doc.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    ok, _ = mod.mineru_available()
+    if ok:
+        pytest.skip("MinerU available — fail-closed path not exercised")
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), str(pdf), "--engine", "mineru"],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 1
+    assert "MinerU" in r.stderr or "mineru" in r.stderr
