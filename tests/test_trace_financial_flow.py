@@ -106,3 +106,64 @@ def test_fake_xlsx_graceful_error(tmp_path):
     p.write_bytes(b"not a real xlsx")
     # openpyxl이 설치된 환경: ValueError → exit 2. 미설치면 openpyxl 안내 ValueError → exit 2.
     assert tff.main([str(p)]) == 2
+
+
+def test_detect_structuring_ctr_threshold(tmp_path):
+    p = tmp_path / "struct.csv"
+    p.write_text(
+        "거래일,입금액,출금액,상대방\n"
+        "2026-08-01,9500000,,의심자A\n"
+        "2026-08-02,,8500000,의심자B\n"
+        "2026-08-03,15000000,,정상고액C\n"
+        "2026-08-04,3000000,,소액D\n",
+        encoding="utf-8",
+    )
+    columns, rows = tff.read_rows(str(p))
+    records = tff.normalize(columns, rows)
+    structs = tff.detect_structuring(records, threshold=10_000_000, lower_ratio=0.8)
+    assert len(structs) == 2
+    detected_cps = {s["counterparty"] for s in structs}
+    assert detected_cps == {"의심자A", "의심자B"}
+    assert structs[0]["amount"] == 9_500_000
+
+
+def test_detect_rapid_drain_passthrough(tmp_path):
+    p = tmp_path / "drain.csv"
+    p.write_text(
+        "거래일시,입금액,출금액,상대방\n"
+        "2026-08-01 10:00:00,20000000,,입금원X\n"
+        "2026-08-01 12:30:00,,19000000,출금처Y\n"
+        "2026-08-05 10:00:00,10000000,,정상입금Z\n"
+        "2026-08-08 10:00:00,,9000000,정상출금W\n",
+        encoding="utf-8",
+    )
+    columns, rows = tff.read_rows(str(p))
+    records = tff.normalize(columns, rows)
+    drains = tff.detect_rapid_drain(records, window_hours=24.0, min_amount=5_000_000, drain_ratio=0.8)
+    assert len(drains) == 1
+    d = drains[0]
+    assert d["in_from"] == "입금원X"
+    assert d["out_to"] == "출금처Y"
+    assert d["hours"] == 2.5
+    assert d["drain_ratio"] == 95.0
+
+
+def test_render_markdown_with_aml_alerts(tmp_path):
+    p = tmp_path / "aml_report.csv"
+    p.write_text(
+        "거래일시,입금액,출금액,상대방\n"
+        "2026-08-01 09:00:00,9000000,,스머핑상대방\n"
+        "2026-08-01 11:00:00,,8800000,급속유출상대방\n",
+        encoding="utf-8",
+    )
+    columns, rows = tff.read_rows(str(p))
+    records = tff.normalize(columns, rows)
+    summary = tff.summarize(records)
+    structs = tff.detect_structuring(records)
+    drains = tff.detect_rapid_drain(records, min_amount=5_000_000)
+    md = tff.render_markdown(records, summary, [], [], 7, 20, structurings=structs, drains=drains)
+    assert "이상거래(AML) 의심 패턴 감지" in md
+    assert "고액현금보고(CTR) 회피 의심" in md
+    assert "거액 입금 후 단기 급속 유출" in md
+    assert "style CP" in md  # Mermaid 노드 하이라이트 확인
+

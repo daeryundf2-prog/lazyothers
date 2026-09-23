@@ -226,23 +226,94 @@ def detect_hops(records: list[dict], window_days: int) -> list[dict]:
     return hops
 
 
-def render_mermaid(ranking: list[tuple[str, dict]], top: int) -> str:
+def detect_structuring(records: list[dict], threshold: float = 10_000_000.0, lower_ratio: float = 0.8) -> list[dict]:
+    """고액현금거래보고(CTR 1천만 원) 회피 목적의 스머핑(Structuring, 800만~999만 원 분할 거래) 의심 탐지."""
+    min_amount = threshold * lower_ratio
+    struct_records = []
+    for r in records:
+        amt = abs(r["amount"])
+        if min_amount <= amt < threshold:
+            struct_records.append({
+                "row": r["row"],
+                "date": r["date"],
+                "date_dt": r["date_dt"],
+                "counterparty": r["counterparty"],
+                "kind": r["kind"],
+                "amount": amt,
+                "reason": f"CTR 보고 기준({threshold:,.0f}원) 직전 분할 의심 ({lower_ratio*100:.0f}%~99%)",
+            })
+    struct_records.sort(key=lambda x: -(x["amount"]))
+    return struct_records
+
+
+def detect_rapid_drain(records: list[dict], window_hours: float = 24.0, min_amount: float = 5_000_000.0, drain_ratio: float = 0.8) -> list[dict]:
+    """거액 입금 후 단시간 내 잔고 급속 유출(대포통장 패스스루 / 자금세탁 의심 체인) 탐지."""
+    drains: list[dict] = []
+    ins = [r for r in records if r["kind"] == "입금" and r["date_dt"] is not None and abs(r["amount"]) >= min_amount]
+    outs = [r for r in records if r["kind"] == "출금" and r["date_dt"] is not None]
+
+    for in_r in ins:
+        in_amt = abs(in_r["amount"])
+        in_time = in_r["date_dt"]
+        matched_outs = []
+        for out_r in outs:
+            if out_r["date_dt"] >= in_time:
+                diff_hours = (out_r["date_dt"] - in_time).total_seconds() / 3600.0
+                if diff_hours <= window_hours:
+                    matched_outs.append((diff_hours, out_r))
+        
+        tot_out = sum(abs(o["amount"]) for _, o in matched_outs)
+        if tot_out >= in_amt * drain_ratio:
+            for diff_h, out_r in matched_outs:
+                drains.append({
+                    "in_date": in_r["date"],
+                    "in_from": in_r["counterparty"],
+                    "in_amount": in_amt,
+                    "out_date": out_r["date"],
+                    "out_to": out_r["counterparty"],
+                    "out_amount": abs(out_r["amount"]),
+                    "hours": round(diff_h, 1),
+                    "drain_ratio": round((tot_out / in_amt) * 100, 1),
+                })
+    drains.sort(key=lambda d: -d["in_amount"])
+    return drains
+
+
+def render_mermaid(ranking: list[tuple[str, dict]], top: int, alert_cps: set[str] | None = None) -> str:
     lines = ["```mermaid", "flowchart LR", '  ACCT["본 계좌"]']
+    alert_cps = alert_cps or set()
+    alert_nodes = []
     for cp, agg in ranking[:top]:
         # 해시는 프로세스별 랜덤화(hash())를 쓰지 않는다 — 증거 도구의 산출물은
         # 같은 입력에 대해 실행마다 동일해야 재현·대조가 가능하다.
         node = "CP" + hashlib.sha1(cp.encode("utf-8")).hexdigest()[:8]
         label = f"{cp} (入{agg['입금']:,.0f} / 出{agg['출금']:,.0f})"
         lines.append(f'  {node}["{label}"]')
+        if cp in alert_cps:
+            alert_nodes.append(node)
         if agg["출금"] > 0:
             lines.append(f"  ACCT -->|출금 {agg['출금']:,.0f}| {node}")
         if agg["입금"] > 0:
             lines.append(f"  {node} -->|입금 {agg['입금']:,.0f}| ACCT")
+    if alert_nodes:
+        for an in alert_nodes:
+            lines.append(f"  style {an} fill:#ffe6e6,stroke:#ff0000,stroke-width:2px")
     lines.append("```")
     return "\n".join(lines)
 
 
-def render_markdown(records: list[dict], summary: dict, trips: list[dict], hops: list[dict], window_days: int, top: int) -> str:
+def render_markdown(
+    records: list[dict],
+    summary: dict,
+    trips: list[dict],
+    hops: list[dict],
+    window_days: int,
+    top: int,
+    structurings: list[dict] | None = None,
+    drains: list[dict] | None = None,
+) -> str:
+    structurings = structurings or []
+    drains = drains or []
     lines = ["# 자금 흐름 분석 보고서\n"]
     lines.append(f"- **거래 건수:** {len(records):,}건")
     lines.append(f"- **총 입금:** {summary['total_in']:,.0f}원 / **총 출금:** {summary['total_out']:,.0f}원")
@@ -253,6 +324,33 @@ def render_markdown(records: list[dict], summary: dict, trips: list[dict], hops:
             f"> ⚠️ **타임스탬프를 파싱하지 못한 거래 {undated}건**이 순환·홉 탐지에서 제외되었다"
             f" (랭킹에는 포함). 지원 형식: {', '.join(_DATE_FORMATS)}\n"
         )
+
+    # 1. 이상거래(AML) 경고 섹션 (존재 시 최상단 우선 노출)
+    alert_cps: set[str] = set()
+    if structurings or drains:
+        lines.append("## ⚠️ 이상거래(AML) 의심 패턴 감지\n")
+        if structurings:
+            lines.append("### 고액현금보고(CTR) 회피 의심 분할 거래 (스머핑 / Structuring)")
+            lines.append("| 일시 | 상대방 | 구분 | 거래금액 | 의심 사유 |")
+            lines.append("| :-- | :-- | :--: | ---: | :-- |")
+            for s in structurings[:top]:
+                alert_cps.add(s["counterparty"])
+                lines.append(f"| {s['date']} | {s['counterparty']} | {s['kind']} | {s['amount']:,.0f}원 | {s['reason']} |")
+            lines.append("")
+
+        if drains:
+            lines.append("### 거액 입금 후 단기 급속 유출 (대포통장 패스스루 / 세탁 의심)")
+            lines.append("| 입금일시 | 입금원 | 입금액 | 출금일시 | 출금처 | 출금액 | 경과시간 | 유출률 |")
+            lines.append("| :-- | :-- | ---: | :-- | :-- | ---: | :--: | :--: |")
+            for d in drains[:top]:
+                alert_cps.add(d["in_from"])
+                alert_cps.add(d["out_to"])
+                lines.append(
+                    f"| {d['in_date']} | {d['in_from']} | {d['in_amount']:,.0f}원 | "
+                    f"{d['out_date']} | {d['out_to']} | {d['out_amount']:,.0f}원 | "
+                    f"{d['hours']}시간 | {d['drain_ratio']}% |"
+                )
+            lines.append("")
 
     lines.append("## 상대방별 랭킹 (거래 규모 순)\n")
     lines.append("| 순위 | 상대방 | 입금합 | 출금합 | 건수 |")
@@ -265,6 +363,7 @@ def render_markdown(records: list[dict], summary: dict, trips: list[dict], hops:
         lines.append("| 상대방 | 출금일 | 출금액 | 재입금일 | 재입금액 | 경과일 |")
         lines.append("| :-- | :-- | ---: | :-- | ---: | ---: |")
         for t in trips[:top]:
+            alert_cps.add(t["counterparty"])
             lines.append(
                 f"| {t['counterparty']} | {t['out_date']} | {t['out_amount']:,.0f} | "
                 f"{t['in_date']} | {t['in_amount']:,.0f} | {t['days']} |"
@@ -282,17 +381,19 @@ def render_markdown(records: list[dict], summary: dict, trips: list[dict], hops:
         lines.append("해당 없음.")
 
     lines.append("\n## 흐름도 (Mermaid)\n")
-    lines.append(render_mermaid(summary["ranking"], top))
-    lines.append("\n> 본 보고서는 단일 계좌 명세 기반의 통계입니다. 순환·홉 표시는 의심 패턴일 뿐이며, 자금세탁 등 위법성 판단은 법률 전문가의 검토 대상입니다.")
+    lines.append(render_mermaid(summary["ranking"], top, alert_cps=alert_cps))
+    lines.append("\n> 본 보고서는 단일 계좌 명세 기반의 통계입니다. 순환·홉·이상거래 표시는 의심 패턴일 뿐이며, 자금세탁 등 위법성 판단은 법률 전문가의 검토 대상입니다.")
     return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="거래내역 자금 흐름 분석기 (랭킹·순환 감지·Mermaid)")
+    p = argparse.ArgumentParser(description="거래내역 자금 흐름 분석기 (랭킹·순환 감지·AML 이상거래·Mermaid)")
     p.add_argument("input", help="거래내역 파일 (.csv / .xlsx)")
     p.add_argument("--output", "-o", default="", help="보고서 마크다운 경로 (미지정 시 stdout)")
     p.add_argument("--window-days", type=int, default=7, help="순환·홉 판정 기간(일, 기본 7)")
     p.add_argument("--top", type=int, default=20, help="랭킹·표에 표시할 상위 건수 (기본 20)")
+    p.add_argument("--ctr-threshold", type=float, default=10_000_000.0, help="고액현금보고(CTR) 임계치(기본 1천만 원)")
+    p.add_argument("--drain-hours", type=float, default=24.0, help="급속 유출 판정 시간(기본 24시간)")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input):
@@ -308,7 +409,12 @@ def main(argv: list[str] | None = None) -> int:
     summary = summarize(records)
     trips = detect_round_trips(records, args.window_days)
     hops = detect_hops(records, args.window_days)
-    md = render_markdown(records, summary, trips, hops, args.window_days, args.top)
+    structurings = detect_structuring(records, threshold=args.ctr_threshold)
+    drains = detect_rapid_drain(records, window_hours=args.drain_hours)
+    md = render_markdown(
+        records, summary, trips, hops, args.window_days, args.top,
+        structurings=structurings, drains=drains,
+    )
 
     if args.output:
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)
