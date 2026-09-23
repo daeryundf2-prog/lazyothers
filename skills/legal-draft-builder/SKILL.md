@@ -19,7 +19,7 @@ ${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/generate_legal_draft.py --input
 
 ```json
 {
-  "type": "소장",                     // 소장 | 준비서면 | 고소장 | 내용증명
+  "type": "소장",                     // 소장 | 준비서면 | 고소장 | 내용증명 | 업무보고서
   "case_info": {"court": "서울중앙지방법원", "plaintiff": "홍길동", "defendant": "주식회사 XXX"},
   "claims": ["대여금 원금 10,000,000원 및 이에 대한 지연손해금"],
   "facts": [
@@ -76,6 +76,14 @@ ${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/korean_morph_grounding.py --sou
 마크다운 초안은 `kordoc` MCP의 `generate_document`로 HWPX로 변환할 수 있다
 ("이 마크다운을 공문서로 뽑아줘"). 변환 후에도 표찰(`stamp_evidence.py`)과
 해시(`audit_evidence_integrity.py`)는 원본·제출본 각각 관리한다.
+
+- `type: "업무보고서"`는 행안부 편람 체계(상단 표기: 문서번호·시행일자·수신·
+  제목, 본문 `1. → 가.` 위계)로 렌더링된다 — kordoc `ministry` 프리셋과
+  동일한 조판 규칙.
+- **서식 채우기(계약서·위임장 등)**: `kordoc` MCP ≥4.14.0의
+  `fill_form(hwpx-preserve)` 모드는 원본 HWPX의 표 테두리·셀 너비·정렬을
+  그대로 보존하고 빈칸 텍스트만 주입한다. 기존 양식 파일을 재사용할 때는
+  재조판하지 말고 이 모드를 쓴다.
 
 ## 책임 경계
 

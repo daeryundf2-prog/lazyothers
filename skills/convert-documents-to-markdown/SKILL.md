@@ -20,3 +20,4 @@ Rules:
 4. Hosted OCR uploads the document to a third party. It requires a separate, explicit authorization identifying the files and destination; ordinary conversion permission is not upload permission.
 5. Do not print credentials, include them in command-line arguments, or embed them in output documents.
 6. Record the installed package version and verify the derivative before review. Local conversion quality and source authenticity remain separate questions.
+7. Table-preserving chunking (opendataloader-pdf `--hybrid-chunk-size` pattern): when splitting converted Markdown for downstream RAG/summarization, a Markdown table block is an atomic unit — never split a table across chunk boundaries. When a table exceeds the chunk budget, emit it as its own oversized chunk rather than fragmenting rows.
