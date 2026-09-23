@@ -141,3 +141,36 @@ def test_stamp_branch_evidence(tmp_path):
     doc.close()
     assert "갑 제1호증의 3" in page0
 
+
+
+def test_stamp_avoids_existing_annot_zone(tmp_path):
+    """상단 우측에 기존 주석/위젯이 있으면 표찰 박스가 겹치지 않고 아래로 이동한다."""
+    src = tmp_path / "annot_src.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    # 기본 표찰 영역(y=20~44)을 가리는 주석을 미리 심는다
+    page.add_rect_annot(fitz.Rect(page.rect.width - 140, 10, page.rect.width - 5, 50))
+    doc.save(src)
+    doc.close()
+
+    doc = fitz.open(str(src))
+    page = doc[0]
+    y, overlapped = stamp_evidence._free_stamp_y(
+        page, page.rect.width - 140, page.rect.width - 5, 20, 24, page.rect.height
+    )
+    doc.close()
+    assert y > 20, "점유 영역과 겹치면 박스가 아래로 이동해야 한다"
+    assert overlapped
+
+
+def test_stamp_clean_page_stays_on_top(tmp_path):
+    """점유물이 없는 페이지는 기본 위치(y=20)를 유지한다."""
+    src = tmp_path / "clean_src.pdf"
+    _make_pdf(src)
+    doc = fitz.open(str(src))
+    page = doc[0]
+    y, overlapped = stamp_evidence._free_stamp_y(
+        page, page.rect.width - 140, page.rect.width - 5, 20, 24, page.rect.height
+    )
+    doc.close()
+    assert y == 20 and not overlapped

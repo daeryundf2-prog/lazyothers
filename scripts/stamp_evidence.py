@@ -45,6 +45,47 @@ def format_evidence_label(label: str, branch: int | None = None) -> str:
     return label
 
 
+def _occupied_rects(page):
+    """페이지의 기존 위젯(폼 필드)·주석의 점유 영역을 반환한다 (PyMuPDF page)."""
+    rects = []
+    try:
+        widgets = page.widgets()
+        if widgets:
+            for w in widgets:
+                rects.append(w.rect)
+    except Exception:
+        pass
+    try:
+        annots = page.annots()
+        if annots:
+            for a in annots:
+                rects.append(a.rect)
+    except Exception:
+        pass
+    return rects
+
+
+def _free_stamp_y(page, x1: float, x2: float, y1: float, box_height: float, page_height: float, max_shifts: int = 8):
+    """표찰 박스가 기존 위젯/주석과 겹치지 않는 y1을 찾아 아래로 이동한다.
+
+    여백을 손상시키지 않고 표찰을 오버레이하기 위해, 겹침 발견 시 박스 높이
+    만큼씩 아래로 내린다. 최대 max_shifts 회까지 — 그래도 겹치면 마지막
+    위치를 반환하고 호출부에서 경고를 남긴다.
+    """
+    import fitz
+
+    occupied = _occupied_rects(page)
+    y0 = y1
+    for _ in range(max_shifts + 1):
+        candidate = fitz.Rect(x1, y1, x2, y1 + box_height)
+        if not any(candidate.intersects(r) for r in occupied):
+            return y1, y1 != y0
+        y1 += box_height + 6
+        if y1 + box_height > page_height * 0.35:
+            break
+    return y1, True
+
+
 def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix: str = "P", start_page: int = 1, all_pages: bool = True, right_margin: float = 25.0, allow_broken_font: bool = False):
     """PyMuPDF(fitz)를 활용한 고품질 서증 라벨 및 Bates 번호 인자"""
     from dep_help import require
@@ -97,6 +138,9 @@ def stamp_pdf_pymupdf(input_pdf: str, output_pdf: str, label: str, bates_prefix:
             box_x1 = max(5.0, rect.width - right_margin - box_width)
             box_x2 = min(rect.width - 5.0, rect.width - right_margin)
             box_y1 = 20
+            box_y1, overlapped = _free_stamp_y(page, box_x1, box_x2, box_y1, box_height, rect.height)
+            if overlapped:
+                print(f"[WARN] Page {idx + 1}: stamp area overlaps existing widget/annot — box pushed down to y={box_y1:.0f}", file=sys.stderr)
             box_y2 = box_y1 + box_height
 
             page.draw_rect(fitz.Rect(box_x1, box_y1, box_x2, box_y2), color=(0.8, 0, 0), width=1.5, fill=(1, 1, 1))
