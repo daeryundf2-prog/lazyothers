@@ -28,6 +28,7 @@ CLI:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import sys
@@ -158,6 +159,111 @@ def mask_text(text: str, types: set[str]) -> tuple[str, dict]:
 
 
 ALL_TYPES = {"rrn", "phone", "account", "email", "passport", "driver_license", "foreigner"}
+
+
+class PiiVault:
+    """Pre-forward Anonymization Vault (ko-pii pattern).
+
+    마스킹 대신 가역적 토큰([PII_RRN_1], [PII_PHONE_1] 등)으로 치환하여
+    LLM에 전달하고, LLM 응답을 받은 뒤 원본 값으로 안전하게 복원할 수 있게 한다.
+    또한 평문 노출 없이 SHA-256 감사 로그를 출력할 수 있다.
+    """
+
+    def __init__(self, salt: str | None = None) -> None:
+        self.salt = salt or os.urandom(16).hex()
+        self._token_to_value: dict[str, str] = {}
+        self._value_to_token: dict[str, str] = {}
+        self._counters: dict[str, int] = {}
+
+    def get_or_create_token(self, pii_type: str, raw_value: str) -> str:
+        if raw_value in self._value_to_token:
+            return self._value_to_token[raw_value]
+        idx = self._counters.get(pii_type, 0) + 1
+        self._counters[pii_type] = idx
+        token = f"[PII_{pii_type.upper()}_{idx}]"
+        self._token_to_value[token] = raw_value
+        self._value_to_token[raw_value] = token
+        return token
+
+    def tokenize_text(self, text: str, types: set[str]) -> tuple[str, dict]:
+        stats: dict = {"rrn": 0, "phone": 0, "account": 0, "email": 0, "passport": 0, "driver_license": 0, "foreigner": 0}
+
+        def _rrn(m: re.Match) -> str:
+            val = m.group(0)
+            stats["rrn"] += 1
+            return self.get_or_create_token("rrn", val)
+
+        if "rrn" in types:
+            text = _RRN_RE.sub(_rrn, text)
+
+        def _phone(m: re.Match) -> str:
+            val = m.group(0)
+            stats["phone"] += 1
+            return self.get_or_create_token("phone", val)
+
+        if "phone" in types:
+            text = _PHONE_RE.sub(_phone, text)
+
+        def _account(m: re.Match) -> str:
+            val = m.group(0)
+            if _DATEISH_RE.match(val):
+                return val
+            stats["account"] += 1
+            return self.get_or_create_token("account", val)
+
+        if "account" in types:
+            text = _ACCOUNT_RE.sub(_account, text)
+
+        def _email(m: re.Match) -> str:
+            val = m.group(0)
+            stats["email"] += 1
+            return self.get_or_create_token("email", val)
+
+        if "email" in types:
+            text = _EMAIL_RE.sub(_email, text)
+
+        def _passport(m: re.Match) -> str:
+            val = m.group(0)
+            stats["passport"] += 1
+            return self.get_or_create_token("passport", val)
+
+        if "passport" in types:
+            text = _PASSPORT_RE.sub(_passport, text)
+
+        def _driver(m: re.Match) -> str:
+            val = m.group(0)
+            stats["driver_license"] += 1
+            return self.get_or_create_token("driver_license", val)
+
+        if "driver_license" in types:
+            text = _DRIVER_LICENSE_RE.sub(_driver, text)
+
+        def _foreigner(m: re.Match) -> str:
+            val = m.group(0)
+            stats["foreigner"] += 1
+            return self.get_or_create_token("foreigner", val)
+
+        if "foreigner" in types:
+            text = _FOREIGNER_RE.sub(_foreigner, text)
+
+        return text, stats
+
+    def detokenize_text(self, text: str) -> str:
+        for token, original in self._token_to_value.items():
+            text = text.replace(token, original)
+        return text
+
+    def export_audit(self) -> dict:
+        return {
+            "token_count": len(self._token_to_value),
+            "tokens": [
+                {
+                    "token": t,
+                    "sha256": hashlib.sha256((val + self.salt).encode()).hexdigest(),
+                }
+                for t, val in self._token_to_value.items()
+            ],
+        }
 
 
 def decode_bytes(raw: bytes) -> tuple[str, str]:
