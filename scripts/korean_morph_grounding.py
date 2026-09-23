@@ -19,6 +19,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -205,6 +206,60 @@ def extract_legal_entities(text: str) -> dict[str, list[str]]:
     }
 
 
+# 옛한글 자모 블록 — 훈민정음 원문·1950~80년대 구형 판결문·고서적의 자모 분석용.
+# 현대 완성형(AC00~D7A3)과 달리 첫가끝 자모가 그대로 드러나는 구간들이다.
+_OLD_KOREAN_BLOCKS = (
+    (0x1100, 0x11FF),  # Hangul Jamo (초성/중성/종성 — 아래아 ᆞ 포함)
+    (0xA960, 0xA97C),  # Hangul Jamo Extended-B (초성)
+    (0xD7B0, 0xD7FF),  # Hangul Jamo Extended-B (종성)
+    (0x3130, 0x318F),  # Hangul Compatibility Jamo (ㆍ U+318D 아래아 등)
+)
+
+
+def analyze_old_korean(text: str) -> dict[str, Any]:
+    """옛한글/자모 수준 분석 — 구형 판결문·고서적·훈민정음체 텍스트 감지.
+
+    Kiwi jamo_alphabet 계열 분석의 폴백으로, 완성형 음절을 NFD 자모로
+    분해하고 현대 국문에서 쓰이지 않는 옛 자모(아래아 ᆞ, 옛 이중자음 등)를
+    식별한다. 반환값에는 복원 가능한 자모 분해 결과와 옛 자모 문자 목록이
+    들어간다.
+    """
+    if not text:
+        return {
+            "has_archaic": False,
+            "archaic_chars": [],
+            "jamo_units": 0,
+            "syllables_decomposed": 0,
+        }
+
+    archaic: list[str] = []
+    jamo_units = 0
+    syllables = 0
+    for ch in text:
+        cp = ord(ch)
+        if 0xAC00 <= cp <= 0xD7A3:
+            syllables += 1
+            jamo_units += len(unicodedata.normalize("NFD", ch))
+            continue
+        for lo, hi in _OLD_KOREAN_BLOCKS:
+            if lo <= cp <= hi:
+                archaic.append(ch)
+                jamo_units += 1
+                break
+        else:
+            if unicodedata.combining(ch):
+                jamo_units += 1
+
+    return {
+        "has_archaic": bool(archaic),
+        "archaic_chars": sorted(set(archaic)),
+        "archaic_count": len(archaic),
+        "jamo_units": jamo_units,
+        "syllables_decomposed": syllables,
+        "arae_a_count": sum(1 for c in archaic if c in "ㆍᆞ"),  # 아래아
+    }
+
+
 LEGAL_PROCEDURAL_TERMS = {
     "소장", "준비서면", "고소장", "답변서", "내용증명", "청구취지", "청구원인", "청구", "취지", "원인",
     "원고", "피고", "고소인", "피고소인", "당사자", "귀중", "사건", "사건번호", "입증방법", "입증",
@@ -274,11 +329,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--threshold", type=float, default=0.70, help="Minimum grounding threshold")
     parser.add_argument("--filter-procedural", action="store_true", help="Filter court procedural boilerplate terms")
     parser.add_argument("--high-fidelity", action="store_true", help="Local High-Fidelity gate: require source and <evidence> tags plus morpheme overlap (no Vertex API)")
+    parser.add_argument("--old-korean", action="store_true", help="옛한글 자모 분석 (훈민정음·구형 판결문 자모 단위)")
     parser.add_argument("--json", action="store_true", help="Output result as JSON")
     args = parser.parse_args(argv)
 
     if args.text:
         entities = extract_legal_entities(args.text)
+        if args.old_korean:
+            entities["old_korean"] = analyze_old_korean(args.text)
         if args.json:
             print(json.dumps(entities, ensure_ascii=False, indent=2))
         else:

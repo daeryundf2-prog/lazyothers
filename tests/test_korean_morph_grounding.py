@@ -97,3 +97,36 @@ def test_korean_morph_grounding_high_fidelity(tmp_path):
     code_pass = kmg.main(["--source", str(src_file), "--target", str(tgt_file_pass), "--high-fidelity", "--json"])
     assert code_pass == 0
 
+
+
+def test_analyze_old_korean_detects_arae_a():
+    """아래아(ㆍ/ᆞ) 같은 옛 자모를 식별한다."""
+    result = kmg.analyze_old_korean("ᄒᆞᆫ글이 아래앗 글짬판결문")
+    assert result["has_archaic"] is True
+    assert result["archaic_count"] > 0
+    assert "ᆞ" in result["archaic_chars"] or "ㆍ" in result["archaic_chars"]
+
+
+def test_analyze_old_korean_modern_text_clean():
+    result = kmg.analyze_old_korean("대법원 2020다12345 판결")
+    assert result["has_archaic"] is False
+    assert result["archaic_chars"] == []
+    assert result["syllables_decomposed"] > 0
+
+
+def test_analyze_old_korean_empty():
+    result = kmg.analyze_old_korean("")
+    assert result["has_archaic"] is False
+    assert result["jamo_units"] == 0
+
+
+def test_old_korean_cli_flag(tmp_path):
+    import io
+    from contextlib import redirect_stdout
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = kmg.main(["--text", "나랏말ᄊᆞ미", "--old-korean", "--json"])
+    assert rc == 0
+    out = json.loads(buf.getvalue())
+    assert out["old_korean"]["has_archaic"] is True
