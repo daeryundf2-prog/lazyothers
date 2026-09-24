@@ -100,6 +100,43 @@ _EMAIL_RE = re.compile(
     r"@([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?![A-Za-z0-9.-])"
 )
 
+# ── 이름 (opt-in: 성씨 사전 + 호칭/라벨 패턴) ─────────────────────
+# 맨 앞 글자가 성씨여야 하고, 직함/역할명(사장님·고객님 등)은 제외한다.
+# 사전 없는 전수 이름 탐지는 오탐이 커서 기본 타입에 넣지 않는다.
+_KOREAN_SURNAMES = frozenset(
+    "김이박최정강조윤장임한오서신권황안송류홍전고문양손배백허유남심노하곽"
+    "성차주우구민진지엄채원천방공현함변염여추도소석선설마길연위표명기반"
+    "왕금옥육인맹제모탁국은편예봉"
+)
+_NAME_BLOCKLIST = frozenset({
+    "사장", "부장", "과장", "차장", "팀장", "대리", "주임", "회장", "부회장",
+    "선생", "고객", "회원", "사용자", "담당", "원장", "교수", "박사", "학생",
+    "어머", "아버", "할머", "할아버", "손님", "어르신", "여러분", "국민",
+    "주민", "시민", "관계자", "관련자", "책임자", "담당자", "작성자",
+})
+# 라벨 뒤의 이름: "성명: 김철수", "피고인 이영희는" — 라벨은 보존하고 이름만 마스킹.
+# 이름 그룹은 비탐욕 — "김철수는"처럼 조사를 이름에 삼키지 않는다.
+_LABELED_NAME_RE = re.compile(
+    r"(성명|이름|성함|대표자|신청인|피고인|피해자|원고|참고인)[:：]?\s*([가-힣]{2,4}?)"
+    r"(?=[은는이가을를도의과와께]|[^가-힣]|$)"
+)
+# 호칭 붙은 이름: "김철수님", "이영희 씨", "박대리님께서" — 성씨 사전 + 블록리스트로
+# 오탐을 걸러내고, 호칭 뒤에는 조사나 비한글이 와야 한다(연속 한글 단어 오인 방지).
+_HONORIFIC_NAME_RE = re.compile(
+    r"(?<![가-힣])([가-힣]{2,4})\s*(씨|님|귀하)"
+    r"(?=[은는이가을를도의과와께한테에게]|[^가-힣]|$)"
+)
+
+# ── 주소 (opt-in: 시도+시군구+도로명/지번 구조 필수) ────────────────
+# 번지수/호수를 포함하는 완전한 구조만 잡는다 — "서울시 강남구" 같은
+# 지역명만으로는 마스킹하지 않는다(개인 식별 정보가 아니므로).
+_ADDR_RE = re.compile(
+    r"[가-힣]{2,}(?:특별시|광역시|특별자치시|특별자치도|시|도)\s+"
+    r"[가-힣]{1,10}(?:시|군|구)\s+"
+    r"(?:[가-힣0-9]{1,10}(?:로|길)|[가-힣]{1,10}(?:읍|면|동|리))"
+    r"\s*\d+(?:-\d+)*(?:번지?|호)?(?:\s*\d+층|\s*\d+호)?"
+)
+
 
 def validate_rrn(rrn: str) -> bool:
     """주민등록번호 체크섬 검증. 형식 후보가 실제 유효한지 2차 확인용."""
@@ -148,7 +185,8 @@ def mask_text(text: str, types: set[str], *, mask_suspect_rrn: bool = False) -> 
     stats: dict = {"rrn": 0, "rrn_bad_checksum": 0, "rrn_suspect": 0,
                    "phone": 0, "card": 0, "card_suspect": 0,
                    "account": 0, "account_skipped_date": 0, "email": 0,
-                   "passport": 0, "driver_license": 0, "foreigner": 0, "foreigner_bad_checksum": 0}
+                   "passport": 0, "driver_license": 0, "foreigner": 0, "foreigner_bad_checksum": 0,
+                   "name": 0, "name_skipped_role": 0, "address": 0}
 
     def _rrn(m: re.Match) -> str:
         candidate = m.group(0)
@@ -239,11 +277,41 @@ def mask_text(text: str, types: set[str], *, mask_suspect_rrn: bool = False) -> 
     if "foreigner" in types:
         text = _FOREIGNER_RE.sub(_foreigner, text)
 
+    def _labeled_name(m: re.Match) -> str:
+        name = m.group(2)
+        if name[0] not in _KOREAN_SURNAMES or name in _NAME_BLOCKLIST:
+            stats["name_skipped_role"] += 1
+            return m.group(0)
+        stats["name"] += 1
+        prefix = m.group(0).rsplit(name, 1)[0]  # "성명: " 등 라벨+구분자를 그대로 보존
+        return f"{prefix}{name[0]}{'*' * (len(name) - 1)}"
+
+    def _honorific_name(m: re.Match) -> str:
+        name = m.group(1)
+        if name[0] not in _KOREAN_SURNAMES or name in _NAME_BLOCKLIST:
+            stats["name_skipped_role"] += 1
+            return m.group(0)
+        stats["name"] += 1
+        return f"{name[0]}{'*' * (len(name) - 1)}{m.group(0)[len(name):]}"
+
+    if "name" in types:
+        text = _LABELED_NAME_RE.sub(_labeled_name, text)
+        text = _HONORIFIC_NAME_RE.sub(_honorific_name, text)
+
+    def _addr(m: re.Match) -> str:
+        stats["address"] += 1
+        head = m.group(0).split(None, 1)[0]  # 시/도 단위까지만 보존
+        return f"{head} ***"
+
+    if "address" in types:
+        text = _ADDR_RE.sub(_addr, text)
+
     return text, stats
 
 
-ALL_TYPES = {"rrn", "phone", "card", "account", "email", "passport", "driver_license", "foreigner", "landline_nodelim"}
-DEFAULT_TYPES = ALL_TYPES - {"landline_nodelim"}
+ALL_TYPES = {"rrn", "phone", "card", "account", "email", "passport", "driver_license", "foreigner",
+             "landline_nodelim", "name", "address"}
+DEFAULT_TYPES = ALL_TYPES - {"landline_nodelim", "name", "address"}
 
 
 class PiiVault:
@@ -274,7 +342,8 @@ class PiiVault:
         stats: dict = {"rrn": 0, "rrn_bad_checksum": 0, "rrn_suspect": 0,
                        "phone": 0, "card": 0, "card_suspect": 0,
                        "account": 0, "account_skipped_date": 0, "email": 0,
-                       "passport": 0, "driver_license": 0, "foreigner": 0, "foreigner_bad_checksum": 0}
+                       "passport": 0, "driver_license": 0, "foreigner": 0, "foreigner_bad_checksum": 0,
+                       "name": 0, "name_skipped_role": 0, "address": 0}
 
         def _rrn(m: re.Match) -> str:
             val = m.group(0)
@@ -353,6 +422,33 @@ class PiiVault:
 
         if "foreigner" in types:
             text = _FOREIGNER_RE.sub(_foreigner, text)
+
+        def _labeled_name(m: re.Match) -> str:
+            name = m.group(2)
+            if name[0] not in _KOREAN_SURNAMES or name in _NAME_BLOCKLIST:
+                stats["name_skipped_role"] += 1
+                return m.group(0)
+            stats["name"] += 1
+            return m.group(0).replace(name, self.get_or_create_token("name", name), 1)
+
+        def _honorific_name(m: re.Match) -> str:
+            name = m.group(1)
+            if name[0] not in _KOREAN_SURNAMES or name in _NAME_BLOCKLIST:
+                stats["name_skipped_role"] += 1
+                return m.group(0)
+            stats["name"] += 1
+            return m.group(0).replace(name, self.get_or_create_token("name", name), 1)
+
+        if "name" in types:
+            text = _LABELED_NAME_RE.sub(_labeled_name, text)
+            text = _HONORIFIC_NAME_RE.sub(_honorific_name, text)
+
+        def _addr(m: re.Match) -> str:
+            stats["address"] += 1
+            return self.get_or_create_token("address", m.group(0))
+
+        if "address" in types:
+            text = _ADDR_RE.sub(_addr, text)
 
         return text, stats
 
@@ -440,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("input", help="입력 텍스트/마크다운/CSV 파일")
     p.add_argument("--output", "-o", default="", help="마스킹본 저장 경로 (미지정 시 stdout)")
     p.add_argument("--report", default="", help="처리 결과 리포트 저장 경로 (선택)")
-    p.add_argument("--types", default=",".join(sorted(DEFAULT_TYPES)), help="쉼표 구분 타입 (opt-in: landline_nodelim)")
+    p.add_argument("--types", default=",".join(sorted(DEFAULT_TYPES)), help="쉼표 구분 타입 (opt-in: landline_nodelim, name, address)")
     p.add_argument("--mask-suspect-rrn", action="store_true", help="구분자 없는 주민번호 후보를 체크섬 불일치여도 마스킹")
     p.add_argument("--vault", default="", help="가역 토큰 매핑을 저장할 vault JSON 경로 (*.pii-vault.json 권장)")
     p.add_argument("--unmask", action="store_true", help="--vault 매핑으로 토큰을 원본 값으로 복원")
