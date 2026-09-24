@@ -147,6 +147,7 @@ async function main() {
 
 	const verifyScript = join(root, "scripts", "verify_legal_factuality.py");
 	if (!fs.existsSync(verifyScript)) {
+		console.error(`[LEGAL FACTUALITY GUARD] NOT_CHECKED: verifier 스크립트 없음 (${verifyScript}) — 법률 사실관계 검증이 수행되지 않았습니다.`);
 		process.exit(0);
 	}
 
@@ -172,7 +173,8 @@ async function main() {
 	}
 
 	if (!res || res.error) {
-		process.exit(0); // python unavailable, fail-open
+		console.error(`[LEGAL FACTUALITY GUARD] UNAVAILABLE: python 실행 불가 — 검증이 수행되지 않았습니다 (무자격 통과 아님).`);
+		process.exit(0);
 	}
 
 	if (res.status !== 0) {
