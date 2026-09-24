@@ -12,7 +12,9 @@ const sourceMcpDir = path.join(pluginRoot, "mcp");
 // This sync is OPTIONAL legacy helper — mirrors definitions to the
 // global Antigravity MCP directory for older runtimes that expect
 // ~/.gemini/antigravity/mcp. It does NOT replace mcp_config.json.
-const legacyTarget = path.join(pluginRoot, "..", "..", "antigravity", "mcp");
+const legacyTarget = fs.existsSync(path.join(pluginRoot, "..", "..", "..", "antigravity", "mcp"))
+  ? path.join(pluginRoot, "..", "..", "..", "antigravity", "mcp")
+  : path.join(pluginRoot, "..", "..", "antigravity", "mcp");
 
 console.log(`[lazyothers:sync] Source: ${sourceMcpDir}`);
 console.log(`[lazyothers:sync] plugin.json mcpServers -> ./mcp_config.json (primary)`);
@@ -78,14 +80,25 @@ try {
 }
 
 // Python deps: install.sh가 PEP 668로 .venv 폴백을 쓴 경우 venv python을
-// 우선 사용한다 — 시스템 pip 재시도는 같은 실패를 반복할 뿐이다.
+// 우선 사용한다 — uv가 있으면 uv pip, 없으면 python -m pip을 사용한다.
 try {
   const venvPy = path.join(
     pluginRoot, ".venv",
     process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
   );
-  const py = fs.existsSync(venvPy) ? `"${venvPy}"` : "python3";
-  execSync(`${py} -m pip install -r requirements.txt`, { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
+  if (fs.existsSync(venvPy)) {
+    try {
+      execSync(`uv pip install -r requirements.txt --python "${venvPy}"`, { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
+    } catch {
+      execSync(`"${venvPy}" -m pip install -r requirements.txt`, { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
+    }
+  } else {
+    try {
+      execSync(`uv pip install -r requirements.txt`, { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
+    } catch {
+      execSync(`python3 -m pip install -r requirements.txt`, { cwd: pluginRoot, stdio: "inherit", timeout: 30000 });
+    }
+  }
 } catch {
   console.warn("[lazyothers:sync] WARN: pip install skipped/failed — run 'pip install -r requirements.txt' manually (미설치 시 파싱 시점에 늦게 발현될 수 있음)");
 }
