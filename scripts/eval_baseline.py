@@ -80,7 +80,7 @@ def _git_commit() -> str:
             ["git", "rev-parse", "--short", "HEAD"],
             cwd=_ROOT,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=10,
         ).stdout.strip()
     except Exception:  # noqa: BLE001

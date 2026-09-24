@@ -45,7 +45,7 @@ def _build_hwpx(path: Path, section_count: int = 1) -> Path:
 def _run(path: Path, *extra: str) -> dict:
     r = subprocess.run(
         [sys.executable, str(SCRIPT), str(path), *extra],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout)
@@ -80,7 +80,7 @@ def test_hwpx_markdown_output(tmp_path):
     out_path = tmp_path / "parsed.md"
     r = subprocess.run(
         [sys.executable, str(SCRIPT), str(hwpx), "--markdown", "--output", str(out_path)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert r.returncode == 0, r.stderr
     md = out_path.read_text(encoding="utf-8")
@@ -102,7 +102,7 @@ def test_hwp_invalid_file_returns_error_dict(tmp_path):
     """hwp-hwpx-parser가 설치되어 있어도 잘못된 .hwp는 크래시 없이 error dict를 반환한다."""
     bad = tmp_path / "bad.hwp"
     bad.write_bytes(b"not-an-hwp-file")
-    r = subprocess.run([sys.executable, str(SCRIPT), str(bad)], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, str(SCRIPT), str(bad)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert r.returncode == 1
     assert "Error" in r.stderr
 
@@ -122,7 +122,7 @@ def test_pdf_invalid_file_tries_both_parsers(tmp_path):
     둘 다 실패하면 두 파서의 오류 사유가 모두 담긴 error dict를 반환한다."""
     bad = tmp_path / "garbage.pdf"
     bad.write_bytes(b"this is definitely not a pdf file at all")
-    r = subprocess.run([sys.executable, str(SCRIPT), str(bad)], capture_output=True, text=True)
+    r = subprocess.run([sys.executable, str(SCRIPT), str(bad)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert r.returncode == 1
     assert "Error" in r.stderr
     # 폴백 체인이 실제로 양쪽을 모두 시도했는지 오류 메시지로 확인
@@ -147,7 +147,7 @@ def test_anydoc_markdown_flag_output(tmp_path):
     out_path = tmp_path / "out.md"
     r = subprocess.run(
         [sys.executable, str(SCRIPT), str(csv_file), "--markdown", "--output", str(out_path)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert r.returncode == 0, r.stderr
     content = out_path.read_text(encoding="utf-8")
@@ -203,7 +203,7 @@ def test_mineru_engine_without_install_fails_closed(tmp_path):
     pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
     r = subprocess.run(
         [sys.executable, str(SCRIPT), str(pdf), "--engine", "mineru"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     assert r.returncode == 1
     assert "MinerU" in r.stderr or "mineru" in r.stderr

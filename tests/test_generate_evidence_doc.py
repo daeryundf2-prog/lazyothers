@@ -76,7 +76,7 @@ def test_real_input_has_no_watermark(tmp_path):
 
 def test_malformed_json_falls_back_to_sample_instead_of_crash(tmp_path):
     manifest = tmp_path / "bad.json"
-    manifest.write_text("{broken")
+    manifest.write_text("{broken", encoding="utf-8")
     output = tmp_path / "sample.md"
     ged.main(["-i", str(manifest), "-o", str(output), "--allow-sample"])
     assert "법원 제출 금지" in output.read_text(encoding="utf-8")
@@ -85,7 +85,7 @@ def test_malformed_json_falls_back_to_sample_instead_of_crash(tmp_path):
 @pytest.mark.parametrize("claimed", [None, "a" * 64, "matching"])
 def test_claimed_hash_is_recomputed(tmp_path, claimed):
     source = tmp_path / "source.txt"
-    source.write_text("synthetic source")
+    source.write_text("synthetic source", encoding="utf-8")
     actual = _sha256(source)
     claimed = actual if claimed == "matching" else claimed
     _, _, result = run_doc(tmp_path, [{"file_path": source.name, "sha256": claimed}])
@@ -97,9 +97,9 @@ def test_claimed_hash_is_recomputed(tmp_path, claimed):
 
 def export_item(tmp_path):
     source = tmp_path / "source.txt"
-    source.write_text("original synthetic evidence")
+    source.write_text("original synthetic evidence", encoding="utf-8")
     artifact = tmp_path / "export.txt"
-    artifact.write_text("synthetic derivative")
+    artifact.write_text("synthetic derivative", encoding="utf-8")
     receipt = pr.make_receipt(source, "forensic-export", evidence_id="E-001")
     receipt["source"]["path"] = source.name
     receipt["artifacts"] = [{"path": artifact.name, "sha256": _sha256(artifact)}]
@@ -129,11 +129,11 @@ def test_forensic_export_end_to_end_and_explicit_approval(tmp_path):
 def test_invalid_export_never_verifies(tmp_path, change):
     item = export_item(tmp_path)
     if change == "changed":
-        (tmp_path / "source.txt").write_text("changed synthetic source")
+        (tmp_path / "source.txt").write_text("changed synthetic source", encoding="utf-8")
     elif change == "missing":
         (tmp_path / "source.txt").unlink()
     elif change == "unrelated":
-        (tmp_path / "other.txt").write_text("unrelated")
+        (tmp_path / "other.txt").write_text("unrelated", encoding="utf-8")
         item["file_path"] = "other.txt"
     elif change == "id":
         item["evidence_id"] = "E-002"
@@ -154,7 +154,7 @@ def test_invalid_export_never_verifies(tmp_path, change):
 def test_input_and_source_output_collisions(tmp_path):
     item = export_item(tmp_path)
     manifest = tmp_path / "manifest.json"
-    manifest.write_text(json.dumps({"items": [item]}))
+    manifest.write_text(json.dumps({"items": [item]}), encoding="utf-8")
     before = manifest.read_bytes()
     assert ged.main(["-i", str(manifest), "-o", str(manifest)]) == 2
     assert manifest.read_bytes() == before
@@ -166,7 +166,7 @@ def test_input_and_source_output_collisions(tmp_path):
 
 def test_no_cwd_fallback_for_missing_relative_source(tmp_path, monkeypatch):
     source = tmp_path / "source.txt"
-    source.write_text("not in manifest directory")
+    source.write_text("not in manifest directory", encoding="utf-8")
     base = tmp_path / "manifest"
     base.mkdir()
     monkeypatch.chdir(tmp_path)

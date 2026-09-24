@@ -20,8 +20,7 @@ def run_node_script(script_name, args=(), stdin_payload=None, env=None, cwd=None
     return subprocess.run(
         [NODE, str(ROOT / "scripts" / script_name), *args],
         input=stdin_payload,
-        text=True,
-        encoding="utf-8",
+        text=True, encoding="utf-8", errors="replace",
         capture_output=True,
         env=e,
         cwd=str(cwd or ROOT),
@@ -94,12 +93,12 @@ def test_korean_law_mcp_wrapper_resolves_or_exits_honestly(tmp_path):
     env = os.environ.copy()
     env.pop("LAW_OC", None)
     env.pop("KOREAN_LAW_API_KEY", None)
-    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, env=env, timeout=5)
+    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=5)
     assert proc.returncode == 78
     fallback = tmp_path / "lazyantigravity" / "korean-law-mcp" / "src"
     fallback.mkdir(parents=True)
     (fallback / "cli.mjs").write_text("process.stdout.write(JSON.stringify(process.argv.slice(2)));", encoding="utf-8")
-    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, env=env, timeout=5)
+    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=5)
     assert proc.returncode == 0
     assert json.loads(proc.stdout) == ["mcp"]
 

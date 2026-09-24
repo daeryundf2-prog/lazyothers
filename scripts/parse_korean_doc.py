@@ -305,7 +305,7 @@ def parse_pdf_mineru(file_path: str) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         proc = subprocess.run(
             ["mineru", "-p", file_path, "-o", tmp],
-            capture_output=True, text=True, timeout=3600)
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600)
         if proc.returncode != 0:
             return {"file_path": file_path, "format": "PDF",
                     "error": f"mineru failed: {proc.stderr.strip()[:300]}"}
@@ -366,8 +366,7 @@ def parse_anydoc(file_path: str) -> dict:
             res = subprocess.run(
                 ["npx", "-y", "@firecrawl/anydoc", file_path],
                 capture_output=True,
-                text=True,
-                encoding="utf-8",
+                text=True, encoding="utf-8", errors="replace",
                 shell=sys.platform == "win32",
                 timeout=30,
             )
@@ -424,6 +423,9 @@ def _ensure_quality(data: dict) -> dict:
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="한국 공문서 및 오피스 문서(HWP/HWPX/PDF/DOCX/XLSX/PPTX) 고속 파싱 도구")
     parser.add_argument("input_file", help="입력 파일 (.hwp, .hwpx, .pdf, .docx, .xlsx, .pptx, .csv 등)")
     parser.add_argument("--output", "-o", help="결과 JSON 저장 경로 (미지정시 stdout 출력)")
