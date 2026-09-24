@@ -18,6 +18,7 @@ Thumbs.db
 .gemini/
 antigravity/
 .env
+*.pii-vault.json
 .pytest_cache/
 .playwright-mcp/
 .ruff_cache/

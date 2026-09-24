@@ -38,7 +38,7 @@ def test_phone_masking_keeps_prefix():
 def test_account_masked_but_dates_preserved():
     text = "계좌 123-45-678901, 지급일 2024-01-16"
     masked, stats = mk.mask_text(text, {"account"})
-    assert "123-45-******" in masked
+    assert "***-**-**8901" in masked  # 끝 4자리만 유지 정책
     assert "2024-01-16" in masked, "날짜가 계좌번호로 오탐되면 안 된다"
     assert stats["account"] == 1 and stats["account_skipped_date"] == 1
 
@@ -97,7 +97,7 @@ def test_phone_masked_with_particle_attached():
 
 def test_account_masked_with_particle_attached():
     masked, stats = mk.mask_text("계좌 123-45-678901에서 송금하였다.", {"account"})
-    assert "123-45-******에서" in masked
+    assert "***-**-**8901에서" in masked
     assert stats["account"] == 1
 
 
@@ -179,3 +179,114 @@ def test_foreigner_number_checksum_attempt_but_masked():
     assert "901212-5678901" not in masked and "901212-5******이다" in masked
     assert stats["foreigner"] == 1
     assert "foreigner" in mk.ALL_TYPES
+
+
+# ── 구분자 확장 (D1/D2) ─────────────────────────────────────────────
+
+def test_rrn_dot_and_space_separators_masked():
+    # 점·공백 구분자도 하이픈처럼 날짜 형식만 맞으면 마스킹한다.
+    masked, stats = mk.mask_text("901212.1234568 그리고 901212 1234568", {"rrn"})
+    assert masked.count("901212-1******") == 2
+    assert stats["rrn"] == 2
+
+
+def test_rrn_delimiterless_checksum_pass_masked():
+    masked, stats = mk.mask_text("연속 9012121234568 번호", {"rrn"})
+    assert "901212-1******" in masked and "9012121234568" not in masked
+    assert stats["rrn"] == 1 and stats["rrn_suspect"] == 0
+
+
+def test_rrn_delimiterless_bad_checksum_masked_with_flag():
+    masked, stats = mk.mask_text("연속 9012121234563 번호", {"rrn"}, mask_suspect_rrn=True)
+    assert "901212-1******" in masked
+    assert stats["rrn"] == 1
+
+
+def test_mobile_all_separator_styles():
+    text = "010-1234-5678 / 010 1234 5678 / 010.1234.5678 / 01012345678 / 0101234567"
+    masked, stats = mk.mask_text(text, {"phone"})
+    assert masked.count("010-1234-****") == 4
+    assert "010-123-****" in masked
+    assert stats["phone"] == 5
+
+
+def test_landline_dot_and_space_separators():
+    masked, stats = mk.mask_text("사무실 02.123.4567 및 02 123 4567", {"phone"})
+    assert masked.count("02-123-****") == 2
+    assert stats["phone"] == 2
+
+
+def test_landline_nodelim_opt_in_only():
+    masked, stats = mk.mask_text("전화 0212345678 로", {"phone"})
+    assert "0212345678" in masked and stats["phone"] == 0
+    masked2, stats2 = mk.mask_text("전화 0212345678 로", {"phone", "landline_nodelim"})
+    assert "02-1234-****" in masked2 and stats2["phone"] == 1
+
+
+# ── 카드번호 (D3) ───────────────────────────────────────────────────
+
+def test_card_masked_luhn_valid():
+    # 4111-1111-1111-1111은 Luhn 유효한 테스트 번호다.
+    masked, stats = mk.mask_text("카드 4111-1111-1111-1111", {"card"})
+    assert "****-****-****-1111" in masked
+    assert stats["card"] == 1
+
+
+def test_card_delimiterless_masked():
+    masked, stats = mk.mask_text("카드 4111111111111111", {"card"})
+    assert "****-****-****-1111" in masked and stats["card"] == 1
+
+
+def test_card_luhn_fail_not_masked():
+    masked, stats = mk.mask_text("번호 4111-1111-1111-1112", {"card"})
+    assert stats["card"] == 0 and stats["card_suspect"] == 1
+
+
+def test_card_runs_before_account():
+    # 4그룹 카드가 계좌 정규식에 먹히지 않아야 한다.
+    masked, stats = mk.mask_text("결제 4111-1111-1111-1111", {"card", "account"})
+    assert "****-****-****-1111" in masked
+    assert stats["card"] == 1 and stats["account"] == 0
+
+
+# ── 계좌 4~5그룹 (D4) ───────────────────────────────────────────────
+
+def test_account_four_and_five_groups():
+    masked, stats = mk.mask_text("a 110-123-456789-01 / b 123-456-7890-12-34", {"account"})
+    assert "***-***-****89-01" in masked
+    assert "***-***-****-12-34" in masked
+    assert stats["account"] == 2
+
+
+# ── 여권 확장 (D5) ──────────────────────────────────────────────────
+
+def test_passport_lowercase_and_new_format():
+    masked, stats = mk.mask_text("a m22000000 / b M123A4567 / c m123a4567", {"passport"})
+    assert "m********" in masked and masked.count("M********") == 1
+    assert "M22000000" not in masked and "M123A4567" not in masked
+    assert stats["passport"] == 3
+
+
+# ── PiiVault CLI (D6) ───────────────────────────────────────────────
+
+def test_vault_roundtrip_via_cli(tmp_path):
+    src = tmp_path / "in.md"
+    src.write_text(f"주민 {VALID_RRN} 연락처 010-1234-5678", encoding="utf-8")
+    vault_path = tmp_path / "v.pii-vault.json"
+    out = tmp_path / "tokenized.md"
+    assert mk.main([str(src), "-o", str(out), "--vault", str(vault_path)]) == 0
+    tokenized = out.read_text(encoding="utf-8")
+    assert "[PII_RRN_1]" in tokenized and VALID_RRN not in tokenized
+    import json as _json
+    payload = _json.loads(vault_path.read_text(encoding="utf-8"))
+    assert "_warning" in payload
+
+    restored = tmp_path / "restored.md"
+    assert mk.main([str(out), "-o", str(restored), "--unmask", "--vault", str(vault_path)]) == 0
+    assert VALID_RRN in restored.read_text(encoding="utf-8")
+
+
+def test_unmask_requires_vault(tmp_path):
+    src = tmp_path / "in.md"
+    src.write_text("텍스트", encoding="utf-8")
+    assert mk.main([str(src), "--unmask"]) == 2
