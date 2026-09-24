@@ -1,4 +1,4 @@
-# Antigravity 3대 플러그인 원클릭 완전 자동 설치 스크립트
+# Antigravity 4대 플러그인 원클릭 완전 자동 설치 스크립트
 param(
     [switch]$Check
 )
@@ -9,7 +9,7 @@ $pluginDir = "$HOME\.gemini\config\plugins"
 if ($Check) {
     $checkFail = 0
     Write-Host "== 환경 진단 (설치하지 않음) ==" -ForegroundColor Cyan
-    $repos = @("lazyantigravity", "lazyforensic", "lazyothers")
+    $repos = @("lazyantigravity", "lazyforensic", "lazyothers", "lazydiagram")
     foreach ($name in $repos) {
         $p = Join-Path $pluginDir $name
         if (Test-Path (Join-Path $p ".git")) {
@@ -61,6 +61,7 @@ $repos = @{
     "lazyantigravity" = "https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git"
     "lazyforensic"    = "https://github.com/daeryundf2-prog/lazyforensic.git"
     "lazyothers"      = "https://github.com/daeryundf2-prog/lazyothers.git"
+    "lazydiagram"     = "https://github.com/daeryundf2-prog/lazydiagram.git"
 }
 
 foreach ($name in $repos.Keys) {
@@ -223,6 +224,7 @@ $defaultConfig = @{
         lazyantigravity = @{ enabled = $true }
         lazyforensic    = @{ enabled = $true }
         lazyothers      = @{ enabled = $true }
+        lazydiagram     = @{ enabled = $true }
     }
 }
 

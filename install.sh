@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Antigravity 3-plugin auto-installer (macOS / Linux)
+# Antigravity 4-plugin auto-installer (macOS / Linux)
 # NOTE: macOS 기본 bash는 3.2 — 연관 배열(declare -A) 없이 POSIX 호환으로 작성.
 #
 #   bash install.sh          # 전체 설치
@@ -12,7 +12,7 @@ ORIGINAL_DIR="$(pwd)"
 if [ "${1:-}" = "--check" ]; then
   CHECK_FAIL=0
   echo "== 환경 진단 (설치하지 않음) =="
-  for name in lazyantigravity lazyforensic lazyothers; do
+  for name in lazyantigravity lazyforensic lazyothers lazydiagram; do
     if [ -d "${PLUGIN_DIR}/${name}/.git" ]; then
       echo "  ✅ plugin ${name} ($(cd "${PLUGIN_DIR}/${name}" && git rev-parse --short HEAD))"
     else
@@ -50,6 +50,7 @@ PLUGINS="
 lazyantigravity https://github.com/daeryundf2-prog/LAZYANTIGRAVITY.git
 lazyforensic    https://github.com/daeryundf2-prog/lazyforensic.git
 lazyothers      https://github.com/daeryundf2-prog/lazyothers.git
+lazydiagram     https://github.com/daeryundf2-prog/lazydiagram.git
 "
 
 echo "$PLUGINS" | while read -r name url; do
@@ -137,6 +138,7 @@ default_plugins = {
     "lazyantigravity": {"enabled": True},
     "lazyforensic": {"enabled": True},
     "lazyothers": {"enabled": True},
+    "lazydiagram": {"enabled": True},
 }
 if os.path.exists(config_path):
     try:

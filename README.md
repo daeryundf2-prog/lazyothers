@@ -43,7 +43,7 @@
 ### 5. 개발자 자원 및 트렌드 허브 (Developer Resources Hub)
 *   **`developer-resources`**: 개발자를 위한 4대 자원 디렉터리(`free-for-dev`, `public-apis.io`, `daily-dev`, `devresourc.es`) 통합 검색 및 추천 스킬. (`scripts/query_dev_resources.py`)
 *   **`convert-documents-to-markdown`**: Office 문서 범용 Markdown 변환 스킬.
-*   **`diagram-design`**: Mermaid/다이어그램 설계 스킬.
+*   **`diagram-design`**: Mermaid/다이어그램 설계 스킬 — 별도 플러그인 [`lazydiagram`](https://github.com/daeryundf2-prog/lazydiagram)으로 분리됨 (인스톨러가 함께 설치).
     *   **free-for-dev**: 무료 PaaS/SaaS, Cloud Hosting(Vercel/Netlify/Render/Cloudflare), Database(Supabase/Neon/Turso/Upstash), Auth(Clerk), Email(Resend), AI(Groq)
     *   **public-apis.io**: 공개 API 카테고리별 검증 목록 (Auth 타입, HTTPS, CORS 지원 표기)
     *   **daily-dev**: 트렌딩 오픈소스, GitHub Trending, 기술 블로그 및 개발 뉴스 피드
