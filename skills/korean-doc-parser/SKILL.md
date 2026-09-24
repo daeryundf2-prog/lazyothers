@@ -31,4 +31,16 @@ ${PLUGIN_ROOT}/scripts/py scripts/parse_korean_doc.py "압수문서.hwpx" --mark
 
 # 2. JSON 구조화 출력
 ${PLUGIN_ROOT}/scripts/py scripts/parse_korean_doc.py "계약서.hwp" --output parsed.json
+
+# 3. 파서 벤치마크 (페이지/초 + 표 재현도 — README/문서에 수치를 적기 전 실행)
+${PLUGIN_ROOT}/scripts/py scripts/bench_parser.py --docs 20 --pages 30 --json
 ```
+
+## 벤치마크
+
+`scripts/bench_parser.py`는 합성 HWPX를 생성해 두 지표를 측정한다:
+
+- `pages_per_sec` — 처리 섹션 수 / 경과 초
+- `table_fidelity` — 기대 표 셀 대비 추출 일치율 (0~1)
+
+성능 수치는 이 스크립트 출력을 그대로 인용한다(수기 추정 금지).
