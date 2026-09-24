@@ -1,11 +1,11 @@
 # LazyOthers (v0.5.0)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Node 18+](https://img.shields.io/badge/Node-18%2B-brightgreen.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Node 20+](https://img.shields.io/badge/Node-20%2B-brightgreen.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
-> **High-Performance Legal-Tech, Document Automation & Korean AI Text Polishing Suite**  
-> Standalone parsers for HWP/HWPX/PDF documents, automated court evidence binders, PII redaction, financial flow analysis, and humanized Korean prose rewriting.
+> **Korean legal document toolkit**  
+> Standalone parsers for HWP/HWPX/PDF documents, automated court evidence binders, PII redaction, financial flow analysis, and Korean prose rewriting.
 
 한국형 리걸테크(Legal-Tech), 공문서 처리(HWP/HWPX), 개인정보 마스킹, 증거 바인더 및 한국어 AI 윤문(Humanize KR) 오픈소스 도구 모음입니다.
 

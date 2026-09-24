@@ -4,7 +4,7 @@
   "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, Humanize KR AI writing refinement, and external MCP tools.",
   "author": "daeryundf2-prog",
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "python": ">=3.12"
   },
   "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "grep_app", "xds", "hwpx", "hwp", "court-evidence", "legal-tech", "humanize-korean", "im-not-ai", "korean-writing"],
