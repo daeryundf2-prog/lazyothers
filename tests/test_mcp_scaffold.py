@@ -12,7 +12,8 @@ TARGET = Path(__file__).resolve().parent.parent / "scripts" / "mask_korean_pii.p
 
 def run(args, cwd=None):
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                          capture_output=True, text=True, cwd=cwd)
+                          capture_output=True, text=True,
+                          encoding="utf-8", errors="replace", cwd=cwd)
 
 
 def test_scaffold_generates_parseable_server(tmp_path):

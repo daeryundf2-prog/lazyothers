@@ -62,9 +62,12 @@ def _safe_ident(name: str) -> str:
 
 
 def render_server(script: str, name: str, desc: str) -> str:
+    # Windows 절대경로의 백슬래시가 생성물 docstring/문자열 안에서
+    # 유니코드 이스케이프(\U 등)로 해석되는 것을 막기 위해 posix 형태로 넣는다.
+    script_posix = Path(script).as_posix()
     code = SERVER_TEMPLATE.format(
-        name=name, desc=desc or f"{script} CLI 래퍼",
-        script=script, safe=_safe_ident(name))
+        name=name, desc=desc or f"{script_posix} CLI 래퍼",
+        script=script_posix, safe=_safe_ident(name))
     ast.parse(code)  # 생성물이 파싱 가능한 파이썬인지 즉시 검증
     return code
 
@@ -78,6 +81,9 @@ def config_snippet(name: str, server_path: Path) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="CLI 스크립트 → fastmcp 서버 스캐폴드")
     ap.add_argument("script", help="래핑할 CLI 스크립트 (저장소 루트 기준 경로)")
     ap.add_argument("--name", required=True, help="MCP 서버/툴 이름")
