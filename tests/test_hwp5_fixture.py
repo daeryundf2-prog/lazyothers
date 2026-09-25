@@ -122,14 +122,21 @@ def test_parse_hwp5_primary_or_fallback_no_error(hwp5_file):
         assert isinstance(result["text"], str)
 
 
-def test_hwp5_cli_strict_rejects_rough(hwp5_file, monkeypatch):
+def test_hwp5_cli_strict_rejects_rough(hwp5_file):
     """--strict는 rough 품질을 exit 2로 거부한다(폴백 경로 기준)."""
     pytest.importorskip("olefile")
-    monkeypatch.setitem(sys.modules, "hwp_hwpx_parser", None)
     import subprocess
     script = SCRIPT_DIR / "parse_korean_doc.py"
+    cmd = [
+        sys.executable,
+        "-c",
+        "import sys, runpy; sys.modules['hwp_hwpx_parser'] = None; sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')",
+        str(script),
+        hwp5_file,
+        "--strict",
+    ]
     proc = subprocess.run(
-        [sys.executable, str(script), hwp5_file, "--strict"],
+        cmd,
         capture_output=True, text=True, encoding="utf-8", timeout=30,
         env={**__import__("os").environ, "PYTHONUTF8": "1"},
     )
