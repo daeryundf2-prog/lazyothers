@@ -40,24 +40,13 @@
 *   **`legal-draft-builder`**: 사실관계 메모+증거 목록으로 소장·준비서면·고소장·내용증명 초안 생성 — 청구취지/청구원인 분리, 본문 증거 라벨 자동 인용(입증방법 결합), 변호사 검토 고지 강제. (`scripts/generate_legal_draft.py`)
 *   **`court-pdf-binder`**: 표찰된 서증 PDF를 호증별 북마크 트리로 병합하고, ECFS 용량 한계(50MB) 초과 시 자동 분할. 증거설명서 evidence.json 호환. (`scripts/bind_court_pdf.py`)
 
-### 5. 개발자 자원 및 트렌드 허브 (Developer Resources Hub)
-*   **`developer-resources`**: 개발자를 위한 4대 자원 디렉터리(`free-for-dev`, `public-apis.io`, `daily-dev`, `devresourc.es`) 통합 검색 및 추천 스킬. (`scripts/query_dev_resources.py`)
-*   **`convert-documents-to-markdown`**: Office 문서 범용 Markdown 변환 스킬.
-*   **`diagram-design`**: Mermaid/다이어그램 설계 스킬 — 별도 플러그인 [`lazydiagram`](https://github.com/daeryundf2-prog/lazydiagram)으로 분리됨 (인스톨러가 함께 설치).
-    *   **free-for-dev**: 무료 PaaS/SaaS, Cloud Hosting(Vercel/Netlify/Render/Cloudflare), Database(Supabase/Neon/Turso/Upstash), Auth(Clerk), Email(Resend), AI(Groq)
-    *   **public-apis.io**: 공개 API 카테고리별 검증 목록 (Auth 타입, HTTPS, CORS 지원 표기)
-    *   **daily-dev**: 트렌딩 오픈소스, GitHub Trending, 기술 블로그 및 개발 뉴스 피드
-    *   **devresourc.es**: UI 컴포넌트(shadcn/ui), 벡터 아이콘(Lucide), 색상 팔레트(Realtime Colors), Tailwind/Git 치트시트 모음
-
-### 6. 확장 MCP 도구 모음 (Bundled MCP Tools)
+### 5. 확장 MCP 도구 모음 (Bundled MCP Tools)
 *   **`kordoc`**: 한국 공문서(HWP3-5/HWPX/PDF/XLSX/DOCX) 파싱, 서식 입력, 직인 날인, 비식별화(Redact) — npm [`kordoc`](https://www.npmjs.com/package/kordoc) 실제 서버 연결 (`npx -y -p kordoc@4.14.2 kordoc-mcp`, **버전 고정**). 툴 스펙: `mcp/kordoc/*.json` (15개)
 *   **`context7`**: 공식 라이브러리 및 최신 프레임워크 실시간 문서 조회 — Upstash 공식 패키지 (`npx -y @upstash/context7-mcp@4.0.4`, 버전 고정)
 *   **`playwright`**: 웹 자동화·채증 — 게시물·SNS·기사 스크린샷/PDF 캡처 (microsoft `@playwright/mcp@0.0.79`, 버전 고정). 캡처 직후 `certify_evidence_file.py`로 인증
 *   **`sequential-thinking`**: 순차적 심층 추론 — 포렌식 인과관계 역추적·다층 쟁점 분석 (modelcontextprotocol 공식 서버 `@modelcontextprotocol/server-sequential-thinking@2026.7.4`, 버전 고정)
-*   **`grep_app`** *(manifest-only)*: GitHub 코드 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/grep_app/` 스펙만 보관 중 (로드맵)
-*   **`xds`** *(manifest-only)*: Astryx XDS 디자인시스템 검색 — 공개 MCP 서버 패키지가 확인되지 않아 `mcp/xds/` 스펙만 보관 중 (로드맵)
 
-> MCP 등록: `plugin.json` → `mcp_config.json` 5개 서버 (kordoc/context7/playwright/sequential-thinking + optional `korean_law_proxy`). grep_app·xds는 서버 미확보로 미등록. `npm run setup`은 검증 + 레거시 미러만 수행.
+> MCP 등록: `plugin.json` → `mcp_config.json` 4개 서버 (kordoc/context7/playwright/sequential-thinking). `npm run setup`은 검증 + 레거시 미러만 수행.
 > 주의: `npm run setup`은 풀설치가 아닙니다. Python 의존성은 `pip install -r requirements.txt`로 별도 설치해야 합니다 (setup 내 pip 시도는 실패해도 경고만 하고 exit 0).
 > 최소 설치가 필요하면 `pip install olefile pymupdf`라도 실행하십시오.
 
@@ -145,7 +134,6 @@ GitHub Actions CI가 `.github/workflows/ci.yml`에서 push/PR마다 pytest(한�
 
 ## 🗺️ 로드맵 (다음 작업)
 
-- [ ] `grep_app` / `xds`: 공개 MCP 서버 확보 또는 자체 브리지 구현 시 `mcp_config.json` 재등록
 - [ ] `kordoc` 고급 기능 검증: `place_seal`, `redact_document`, `generate_document` 등 나머지 툴 실문서 통합 테스트
 - [ ] 스캔본 PDF OCR 연동 (`docling` 등 — `requirements.txt` 주석 참조)
 - [ ] 실제 HWP 5.0 바이너리 샘플 파일 기반 회귀 테스트
@@ -158,8 +146,7 @@ GitHub Actions CI가 `.github/workflows/ci.yml`에서 push/PR마다 pytest(한�
 - `lazyforensic` — 포렌식/한국법률 도메인 플러그인
 - `lazyothers` (본 레포) — 리걸 문서·HWP·humanize 도메인 플러그인
 - `lazyagentic` — 규칙 전용 거버넌스 플러그인 (Dual-Mount `~/agentic`)
-- [`korean-law-mcp`](https://github.com/daeryundf2-prog/korean-law-mcp) — 한국법 조회 MCP 서버
-  (`scripts/korean_law_mcp_wrapper.mjs`가 sibling 클론을 찾아 실행)
+- [`korean-law-mcp`](https://github.com/daeryundf2-prog/korean-law-mcp) — 한국법 조회 MCP 서버 (lazyforensic 내 번들 또는 실시간 API)
 
 공유 자산: `scripts/coverage_audit.mjs`는 lazyforensic(캐노니컬)·lazyothers·LAZYANTIGRAVITY
 3곳에 바이트 동일 사본으로 유지 — 수정 시 3곳 동기화 필수.

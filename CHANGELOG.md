@@ -1,5 +1,12 @@
 # Changelog
 
+### Removed — 미사용 스킬·매니페스트 전용 MCP 및 korean_law_proxy 정리 (0.5.2)
+
+- `skills/convert-documents-to-markdown`: `korean-doc-parser` 및 `kordoc`과 기능이 중복되는 외부 안내 전용 스킬 삭제.
+- `skills/developer-resources`: 정적 데이터셋 의존 스킬 및 관련 스크립트(`scripts/query_dev_resources.py`), 단위 테스트(`tests/test_query_dev_resources.py`) 삭제.
+- `mcp/grep_app`, `mcp/xds`: 실제 서버 패키지가 없는 매니페스트 전용 스펙 디렉터리 삭제, `plugin.json` 및 `package.json` 키워드 정리.
+- `korean_law_proxy`: `mcp_config.json` 프록시 항목 및 래퍼(`scripts/korean_law_mcp_wrapper.mjs`) 제거. `legal-case-search` 스킬은 `lazyforensic_korean_law`(실시간 API)와 `lazyantigravity_korean_law_offline`(오프라인 랜드마크 DB)을 직접 호출하도록 경로 재설정.
+
 ### Changed — Claude Opus/Sonnet 5.5 및 Gemini 3.8 Flash 세션 모델 연동 대응 (0.5.1)
 
 - `plugin.json`: Gemini 3.8 Flash 외 Claude Opus 5.5 / Sonnet 5.5 세션 모델 지원 명시 및 버전 패치 갱신 (0.5.1).

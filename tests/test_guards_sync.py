@@ -1,4 +1,4 @@
-"""test_guards_sync.py — lazyothers 동기화 가드(markdown_structure_guard, stop_claim_guard, korean_law wrapper) 검증."""
+"""test_guards_sync.py — lazyothers 동기화 가드(markdown_structure_guard, stop_claim_guard, legal_factuality_guard) 검증."""
 
 import json
 import os
@@ -85,24 +85,6 @@ def test_stop_claim_guard_blocks_phantom_files(tmp_path):
     assert "Fact-Retracing" in data.get("reason", "")
 
 
-def test_korean_law_mcp_wrapper_resolves_or_exits_honestly(tmp_path):
-    plugin = tmp_path / "plugin" / "scripts"
-    plugin.mkdir(parents=True)
-    wrapper = plugin / "korean_law_mcp_wrapper.mjs"
-    wrapper.write_bytes((ROOT / "scripts" / wrapper.name).read_bytes())
-    env = os.environ.copy()
-    env.pop("LAW_OC", None)
-    env.pop("KOREAN_LAW_API_KEY", None)
-    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=5)
-    assert proc.returncode == 78
-    fallback = tmp_path / "lazyantigravity" / "korean-law-mcp" / "src"
-    fallback.mkdir(parents=True)
-    (fallback / "cli.mjs").write_text("process.stdout.write(JSON.stringify(process.argv.slice(2)));", encoding="utf-8")
-    proc = subprocess.run([NODE, str(wrapper)], capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=5)
-    assert proc.returncode == 0
-    assert json.loads(proc.stdout) == ["mcp"]
-
-
 def test_legal_factuality_guard_blocks_fake_statute(tmp_path):
     bad = tmp_path / "소장_초안.md"
     bad.write_text("# 소장\n원고는 민법 제1500조에 기하여 청구한다.", encoding="utf-8")
@@ -139,11 +121,10 @@ def test_hooks_matchers_cover_write_file_and_shell():
         assert token in shell_m
 
 
-def test_mcp_config_covers_bundled_servers_except_manifest_only(tmp_path):
+def test_mcp_config_covers_bundled_servers(tmp_path):
     config = json.loads((ROOT / "mcp_config.json").read_text(encoding="utf-8"))
     registered = set(config.get("mcpServers", {}))
     bundled = {entry.name for entry in (ROOT / "mcp").iterdir() if entry.is_dir()}
     for tool in bundled:
-        if tool not in {"grep_app", "xds"}:
-            assert tool in registered
+        assert tool in registered
 

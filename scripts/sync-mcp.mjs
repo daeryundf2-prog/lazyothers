@@ -41,8 +41,6 @@ function copyRecursive(src, dest) {
 }
 
 // Validate mcp_config.json covers all bundled tools
-// manifestOnly: 공개 MCP 서버가 아직 없어 mcp/ 스펙만 번들한 도구 (mcp_config 미등록이 정상)
-const manifestOnly = new Set(["grep_app", "xds"]);
 try {
   const mcpConfigPath = path.join(pluginRoot, "mcp_config.json");
   const mcpConfig = JSON.parse(fs.readFileSync(mcpConfigPath, "utf-8"));
@@ -52,11 +50,7 @@ try {
   console.log(`[lazyothers:sync] Registered servers: ${registeredServers.join(", ")}`);
   for (const tool of bundledTools) {
     if (!registeredServers.includes(tool)) {
-      if (manifestOnly.has(tool)) {
-        console.log(`  - '${tool}': manifest-only (공개 MCP 서버 미확보, mcp/ 스펙만 유지)`);
-      } else {
-        console.warn(`[lazyothers:sync] WARN: bundled tool '${tool}' not in mcp_config.json`);
-      }
+      console.warn(`[lazyothers:sync] WARN: bundled tool '${tool}' not in mcp_config.json`);
     }
   }
 } catch (e) {

@@ -9,13 +9,17 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 
 ## 핵심 도구
 
-- **`korean_law` MCP 도구 (optional — `lazyforensic` 플러그인 필요, 실제 등록 도구명 기준):**
+- **`lazyforensic_korean_law` (live API — `LAW_OC` 환경변수 필요, 현재 미설정 시 비활성화):**
   - `search_law`: 법령 검색 (정확매칭 + 개정 이력, 법령 MST 반환)
   - `get_law_text`: 법령 MST의 본문·조문 전문 조회
   - `search_decisions` / `get_decision_text`: 판례 검색 및 판결문 전문 조회
-  - 기타: `ordinance_radar`, `get_annexes`, `legal_research`, `legal_analysis`, `discover_tools`, `execute_tool` (총 10개)
+  - 기타: `ordinance_radar`, `get_annexes`, `legal_research`, `legal_analysis`, `discover_tools`, `execute_tool`
+- **`lazyantigravity_korean_law_offline` (offline landmark DB — 항상 사용 가능):**
+  - `lookup_statute`: 주요 실정법 랜드마크 조문 오프라인 조회
+  - `lookup_precedent`: 주요 판례 랜드마크 요지 오프라인 조회
 
-> `korean_law_mcp_wrapper.mjs`가 `lazyforensic`의 전체 API 서버 또는 `lazyantigravity`의 오프라인 랜드마크 법률/판례 DB를 자동 감지하여 투명하게 연동합니다.
+> 실시간 법제처 API가 필요하고 `LAW_OC`가 설정된 환경에서는 `lazyforensic_korean_law`를 직접 호출하고, API 키가 없거나 오프라인 환경에서는 `lazyantigravity_korean_law_offline`을 직접 호출합니다.
+> **절대 법률 조문을 조작하거나 임의 창작하지 마십시오 (Never fabricate statutes).**
 > 작성된 모든 법률 검토 결과물은 `verify_legal_factuality.py`를 통해 실존 법령 상한선 및 판례 번호 규칙에 대해 기계적으로 전수 감사됩니다.
 
 ## 기계적 사실성 및 High-Fidelity 게이트
