@@ -270,13 +270,13 @@ exit code로 분기한다 (0/1/2/3 의미는 기존 게이트와 동일):
 
 **모델:** 모델 선택은 본 스킬의 관할이 아니다 — 호스트 런타임이 정한다. v2.2의 절감은 전적으로 콜 수·경로에서 온다.
 
-Antigravity(Gemini 3.8)에서는 `invoke_subagent` 의 `Subagents[].Model` 힌트만 쓸 수 있다. 티어 매핑은 다음과 같다.
+Antigravity에서는 `invoke_subagent` 의 `Subagents[].Model` 힌트만 쓸 수 있다. 티어 매핑은 다음과 같다.
 
 | 런타임 에이전트 | Antigravity `Model` | 근거 |
 |---|---|---|
 | `humanize-monolith` | `flash` | 전 경로 공용 윤문 — 처리량 우선 |
-| `humanize-diagnostician` | `pro` | 71패턴 전수 진단 — 추론 정확도 우선 |
-| `humanize-finalizer` | `pro` | heavy·승급 마무리 — 의미 보존 15항 검증 |
+| `humanize-diagnostician` | `pro` (Gemini 세션) / `inherit` (Claude 5.5 세션) | 71패턴 전수 진단 — 추론 정확도 우선 |
+| `humanize-finalizer` | `pro` (Gemini 세션) / `inherit` (Claude 5.5 세션) | heavy·승급 마무리 — 의미 보존 15항 검증 |
 
 `model: opus` 같은 Anthropic 모델명을 Antigravity 에 그대로 넘기지 않는다. `Model` 값은 `flash | pro | flash_lite | inherit` 만 유효하며, 호스트 강제가 아닌 힌트다.
 

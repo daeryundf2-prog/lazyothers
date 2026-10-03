@@ -1,5 +1,11 @@
 # Changelog
 
+### Changed — Claude Opus/Sonnet 5.5 및 Gemini 3.8 Flash 세션 모델 연동 대응 (0.5.1)
+
+- `plugin.json`: Gemini 3.8 Flash 외 Claude Opus 5.5 / Sonnet 5.5 세션 모델 지원 명시 및 버전 패치 갱신 (0.5.1).
+- `package.json`: 버전 0.5.1. `npm test`는 `scripts/run_tests.mjs`가 repo `.venv` python을 먼저 찾아 pytest를 돌린다(Windows `.venv/Scripts/python.exe` 포함). 시스템 python에 `olefile`이 없어 1건 실패하던 문제 해소.
+- `skills/humanize-korean`: 서브에이전트 모델 힌트에 Claude 5.5 세션 `inherit` 및 Gemini 세션 `pro` 가이드 반영.
+
 ### Changed — Gemini 3.8 Flash session default
 
 - `plugin.json` description and longDescription name Google Antigravity + Gemini 3.8 Flash as the session default.

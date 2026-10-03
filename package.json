@@ -1,6 +1,6 @@
 {
   "name": "lazyothers",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Aggregated Antigravity plugin for Korean document processing (HWP/HWPX), Legal-Tech evidence stamping, Humanize KR AI writing refinement, and external MCP tools.",
   "author": "daeryundf2-prog",
   "engines": {
@@ -13,6 +13,6 @@
   "scripts": {
     "setup": "node scripts/sync-mcp.mjs",
     "sync": "node scripts/sync-mcp.mjs",
-    "test": "python -m pytest tests"
+    "test": "node scripts/run_tests.mjs"
   }
 }
