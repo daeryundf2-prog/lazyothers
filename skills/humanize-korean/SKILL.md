@@ -275,8 +275,8 @@ Antigravity에서는 `invoke_subagent` 의 `Subagents[].Model` 힌트만 쓸 수
 | 런타임 에이전트 | Antigravity `Model` | 근거 |
 |---|---|---|
 | `humanize-monolith` | `flash` | 전 경로 공용 윤문 — 처리량 우선 |
-| `humanize-diagnostician` | `pro` (Gemini 세션) / `inherit` (Claude 5.5 세션) | 71패턴 전수 진단 — 추론 정확도 우선 |
-| `humanize-finalizer` | `pro` (Gemini 세션) / `inherit` (Claude 5.5 세션) | heavy·승급 마무리 — 의미 보존 15항 검증 |
+| `humanize-diagnostician` | `pro` (세션 무관, Claude 할당량 절약) | 71패턴 전수 진단 — 추론 정확도 우선 |
+| `humanize-finalizer` | `pro` (Gemini 세션) / `inherit` (Claude 5.5 세션, 최종 판정 레인 1개) | heavy·승급 마무리 — 의미 보존 15항 검증 |
 
 `model: opus` 같은 Anthropic 모델명을 Antigravity 에 그대로 넘기지 않는다. `Model` 값은 `flash | pro | flash_lite | inherit` 만 유효하며, 호스트 강제가 아닌 힌트다.
 
