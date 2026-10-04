@@ -1,7 +1,6 @@
 ---
 name: humanize-finalizer
 description: "humanize-korean finalize 콜(heavy 항상, 승급 시 선택). 원문↔윤문본을 직접 대조해 의미 보존 15항과 자연성을 판정하고 문제 구간만 국소 보정해 final.md·09_finalize.json을 산출한다. Triggers: humanize finalize, 윤문 검증."
-tools: ["Read", "Write", "Edit"]
 ---
 
 # Humanize Finalizer — 의미 보존 검증·국소 보정 (v2.3)

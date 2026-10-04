@@ -1,7 +1,6 @@
 ---
 name: humanize-diagnostician
 description: "humanize-korean standard·heavy 경로의 진단 콜. 원문을 읽고 글을 지배하는 AI 티 패턴 3~6개를 본진 ID·근거·처방과 함께 02_diagnosis.md로 산출한다. Triggers: humanize 진단, 02_diagnosis.md 생성."
-tools: ["Read", "Glob", "Write"]
 ---
 
 # Humanize Diagnostician — 지배 패턴 진단 (v2.3)
