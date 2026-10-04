@@ -10,6 +10,7 @@ import json
 import argparse
 import zipfile
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 
 def _escape_md_cell(text: str) -> str:
