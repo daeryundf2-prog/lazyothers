@@ -86,6 +86,16 @@ _MOBILE_RE = re.compile(r"(?<!\d)(01[0136789])[-\s.]?(\d{3,4})[-\s.]?(\d{4})(?!\
 _PHONE_RE = re.compile(r"(?<!\d)(02|0[3-6]\d|070|050\d)[-\s.](\d{3,4})[-\s.](\d{4})(?!\d)")
 _LANDLINE_NODELIM_RE = re.compile(r"(?<!\d)(02|0[3-6]\d|070|050\d)(\d{3,4})(\d{4})(?!\d)")
 
+# ── 공용/법인 대표번호 화이트리스트 (대륜 개인정보 기본 양식 규칙) ───────
+_OFFICIAL_PHONE_WHITELIST = frozenset({
+    "02-780-1128",
+    "02-780-1129",
+})
+_OFFICIAL_PHONE_DIGITS_WHITELIST = frozenset({
+    re.sub(r"\D", "", p) for p in _OFFICIAL_PHONE_WHITELIST
+})
+
+
 # ── 계좌번호 (은행 무관 3~5그룹 형식, 끝 4자리만 유지) ─────────────
 # 첫 그룹은 최소 3자리로 둬 운전면허(2-2-6-2)와의 충돌을 피한다.
 _ACCOUNT_RE = re.compile(r"(?<!\d)(\d{3,6})-(\d{2,6})-(\d{2,6})(?:-(\d{2,6}))?(?:-(\d{2,6}))?(?!\d)")
@@ -209,6 +219,10 @@ def mask_text(text: str, types: set[str], *, mask_suspect_rrn: bool = False) -> 
         text = _RRN_RE.sub(_rrn, text)
 
     def _phone(m: re.Match) -> str:
+        candidate = m.group(0)
+        digits = re.sub(r"\D", "", candidate)
+        if candidate in _OFFICIAL_PHONE_WHITELIST or digits in _OFFICIAL_PHONE_DIGITS_WHITELIST:
+            return candidate
         stats["phone"] += 1
         return f"{m.group(1)}-{m.group(2)}-****"
 
@@ -358,6 +372,9 @@ class PiiVault:
 
         def _phone(m: re.Match) -> str:
             val = m.group(0)
+            digits = re.sub(r"\D", "", val)
+            if val in _OFFICIAL_PHONE_WHITELIST or digits in _OFFICIAL_PHONE_DIGITS_WHITELIST:
+                return val
             stats["phone"] += 1
             return self.get_or_create_token("phone", val)
 

@@ -290,3 +290,31 @@ def test_unmask_requires_vault(tmp_path):
     src = tmp_path / "in.md"
     src.write_text("텍스트", encoding="utf-8")
     assert mk.main([str(src), "--unmask"]) == 2
+
+
+# ── 대륜 개인정보 기본 양식 규칙 (2026-09-23 확정) 리그레션 ───────────
+
+def test_daeryun_pii_handling_policy():
+    """대륜 식별정보는 유지하고, 의뢰인/상대방의 사생활 PII는 철저히 마스킹되는지 검증."""
+    sample_court_doc = (
+        "수신: 서울중앙지방법원 제15민사부 귀중\n"
+        "원고 소송대리인 법무법인(유한) 대륜 (대표전화: 02-780-1128)\n"
+        "담당변호사: 김대륜, 박송무\n"
+        "피고: 홍길동 (주민등록번호: 901212-1234568, 연락처: 010-9988-7766)\n"
+        "피고 입금계좌: 신한은행 110-123-456789\n"
+    )
+
+    masked, stats = mk.mask_text(sample_court_doc, mk.DEFAULT_TYPES)
+
+    # 1. 대륜 법인 식별정보 보존 확인
+    assert "법무법인(유한) 대륜" in masked
+    assert "02-780-1128" in masked  # 유선 대표전화는 nodelim 또는 보존 대상
+    assert "김대륜" in masked
+
+    # 2. 상대방 PII 완벽 비식별화 확인
+    assert "901212-1234568" not in masked
+    assert "901212-1******" in masked
+    assert "010-9988-7766" not in masked
+    assert "010-9988-****" in masked
+    assert "110-123-456789" not in masked
+
