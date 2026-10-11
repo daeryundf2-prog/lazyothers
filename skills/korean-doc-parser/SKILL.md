@@ -36,6 +36,14 @@ ${PLUGIN_ROOT}/scripts/py scripts/parse_korean_doc.py "계약서.hwp" --output p
 ${PLUGIN_ROOT}/scripts/py scripts/bench_parser.py --docs 20 --pages 30 --json
 ```
 
+## 이 스킬이 하지 않는 것
+
+이 스킬은 읽기 전용이다. 아래 작업은 번들된 `kordoc` MCP(`mcp/kordoc/*.json`)로 보낸다.
+
+- 신구대조표(두 문서 비교): `compare_documents` (`file_path_a`=현행, `file_path_b`=개정안). HWP↔HWPX 교차 비교 가능. 개정이유 열은 원문에 없으므로 자동 생성하지 않는다.
+- 서식 채우기: `fill_form` (`output_format: hwpx-preserve`로 원본 서식 유지)
+- 마크다운 → HWPX 생성: `generate_document` (세부는 `legal-draft-builder` 스킬)
+
 ## 벤치마크
 
 `scripts/bench_parser.py`는 합성 HWPX를 생성해 두 지표를 측정한다:

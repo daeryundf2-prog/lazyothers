@@ -22,6 +22,20 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 > **절대 법률 조문을 조작하거나 임의 창작하지 마십시오 (Never fabricate statutes).**
 > 작성된 모든 법률 검토 결과물은 `verify_legal_factuality.py`를 통해 실존 법령 상한선 및 판례 번호 규칙에 대해 기계적으로 전수 감사됩니다.
 
+## 준사법기관 결정례 (조세심판·노동위·행정심판)
+
+`lazyforensic_korean_law`는 아래 도구를 직접 노출하지 않으므로 `execute_tool`로 호출한다(`tool_name` + `params`).
+
+| 기관 | 검색 | 전문 |
+|---|---|---|
+| 조세심판원 | `search_tax_tribunal_decisions` | `get_tax_tribunal_decision_text` |
+| 노동위원회 | `search_nlrc_decisions` | `get_nlrc_decision_text` |
+| 중앙행정심판위원회 | `search_admin_appeals` | `get_admin_appeal_text` |
+
+- 결정번호는 검색 결과에 나온 그대로 인용한다. `verify_legal_factuality.py`는 `조심 2023서1234`·`국심 2005중567`(조세심판)과 `중앙2023부해1234`(노동위, 부호 부해·부노·차별·공정) 형식을 인식해 `cited_tribunal_decisions`로 분리하고 연도 상한을 검사한다.
+- 행정심판 재결번호(`2023-12345` 형식)는 게이트가 인식하지 않는다. 검색 도구 결과와 직접 대조한다.
+- 게이트는 형식·연도만 본다. 결정례의 실존 여부는 위 전문 조회 도구로 확인해야 한다.
+
 ## 기계적 사실성 및 High-Fidelity 게이트
 
 ```bash
