@@ -314,6 +314,24 @@ PRECEDENT_RE = re.compile(
     r"(?=(?:\s*(?:[가-힣]{1,10}\s+)?(?:선고|판결|결정|심판|명령|사건|호|판시))|\s*$)"
 )
 
+# 준사법기관 결정례 번호. 법원 사건부호 체계와 달라 PRECEDENT_RE로 검사하면
+# "조심 2023서1234"의 '서'를 비표준 부호로 오탐하고, "중앙2023부해1234"처럼
+# 접두어가 숫자에 붙은 형태는 아예 놓친다(연도 검사 누락).
+# 조세심판원(2008~)·구 국세심판원: "조심 2023서1234", "국심 2005중1234".
+TAX_TRIBUNAL_RE = re.compile(
+    r"(?<![가-힣])(?P<prefix>조심|국심)\s*(?P<year>\d{4})\s*(?P<code>[가-힣]{1,2})\s*(?P<num>\d+)(?!\d)"
+)
+TAX_TRIBUNAL_CODES = {"서", "중", "부", "광", "대", "전", "인", "지", "관"}
+# 노동위원회: "중앙2023부해1234", "서울2023부노56". 사건 종류 부호가 있어야만
+# 인용으로 본다(임의 "지역명+연도" 문자열 오탐 방지).
+LABOR_COMMISSION_RE = re.compile(
+    r"(?<![가-힣])(?P<prefix>[가-힣]{2})\s*(?P<year>\d{4})\s*(?P<code>부해|부노|차별|공정)\s*(?P<num>\d+)(?!\d)"
+)
+LABOR_COMMISSION_PREFIXES = {
+    "중앙", "서울", "부산", "경기", "충남", "전남", "경북", "경남",
+    "인천", "강원", "충북", "전북", "제주", "울산",
+}
+
 # Standard Korean particle/suffix lookahead for court and agency bounds
 KOREAN_PARTICLE_SUFFIX = (
     r"(?:장관|차관|처장|청장|국장|위원장|부장|판사|검사|법원장|령|고시|지침|규정)?"
@@ -535,6 +553,7 @@ def verify_legal_text(
     warnings: list[str] = list(_LOAD_WARNINGS)
     cited_statutes: list[str] = []
     cited_precedents: list[str] = []
+    cited_tribunal: list[str] = []
 
     # 1. Statutory bounds check (flexible spacing & span deduplication)
     matched_spans: list[tuple[int, int]] = []
@@ -581,8 +600,51 @@ def verify_legal_text(
                 f"korean_law MCP 등 공식 출처로 조문 존재 여부를 반드시 대조하십시오."
             )
 
+    # 2-0. Quasi-judicial tribunal decisions (조세심판원·노동위원회)
+    tribunal_spans: list[tuple[int, int]] = []
+    for match in TAX_TRIBUNAL_RE.finditer(text):
+        prefix, code = match.group("prefix"), match.group("code")
+        year = int(match.group("year"))
+        case_str = f"{prefix}{year}{code}{match.group('num')}"
+        tribunal_spans.append(match.span())
+        cited_tribunal.append(case_str)
+        if year > current_year:
+            errors.append(
+                f"[결정례 날조] 미래 연도 심판결정 인용: {case_str} - "
+                f"현재 연도({current_year}년)보다 미래의 결정번호는 날조된 환각입니다."
+            )
+        elif prefix == "조심" and year < 2008:
+            warnings.append(
+                f"[결정례 연도 확인] {case_str} - 조세심판원은 2008년 출범했습니다. "
+                f"그 이전 결정은 '국심'(국세심판원) 번호인지 확인하십시오."
+            )
+        if code not in TAX_TRIBUNAL_CODES:
+            warnings.append(
+                f"[결정례 부호 확인] 조세심판 결정번호의 비표준 부호 '{code}' in {case_str} - "
+                f"search_tax_tribunal_decisions 등 공식 출처로 대조하십시오."
+            )
+    for match in LABOR_COMMISSION_RE.finditer(text):
+        prefix = match.group("prefix")
+        if prefix not in LABOR_COMMISSION_PREFIXES:
+            continue
+        year = int(match.group("year"))
+        case_str = f"{prefix}{year}{match.group('code')}{match.group('num')}"
+        tribunal_spans.append(match.span())
+        cited_tribunal.append(case_str)
+        if year > current_year:
+            errors.append(
+                f"[결정례 날조] 미래 연도 판정 인용: {case_str} - "
+                f"현재 연도({current_year}년)보다 미래의 사건번호는 날조된 환각입니다."
+            )
+        elif year < 1953:
+            errors.append(
+                f"[결정례 날조] 노동위원회 설립(1953년) 이전 연도 판정: {case_str}."
+            )
+
     # 2. Precedent format and year sanity check
     for match in PRECEDENT_RE.finditer(text):
+        if any(s <= match.start() < e for s, e in tribunal_spans):
+            continue
         year = int(match.group("year"))
         code = match.group("code")
         num = match.group("num")
@@ -777,6 +839,7 @@ def verify_legal_text(
         "warnings": warnings,
         "cited_statutes": sorted(list(set(cited_statutes))),
         "cited_precedents": sorted(list(set(cited_precedents))),
+        "cited_tribunal_decisions": sorted(set(cited_tribunal)),
     }
 
 
@@ -801,6 +864,7 @@ def verify_legal_file(
             "warnings": [],
             "cited_statutes": [],
             "cited_precedents": [],
+            "cited_tribunal_decisions": [],
         }
     try:
         content = path.read_text(encoding="utf-8")

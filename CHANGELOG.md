@@ -1,5 +1,11 @@
 # Changelog
 
+### Fixed — 준사법기관 결정례 인용 검증 (Unreleased)
+
+- `verify_legal_factuality.py`: 조세심판원(`조심 2023서1234`, 구 `국심`)과 노동위원회(`중앙2023부해1234` 등) 결정번호를 별도 패턴으로 인식해 `cited_tribunal_decisions`에 분리. 이전에는 조세심판 번호를 "비표준 사건부호"로 오탐하고, 노동위 번호는 검출하지 못해 미래 연도 날조도 통과했다.
+- `legal-case-search`: 조세심판·노동위·행정심판 조회 도구(`execute_tool` 경유) 라우팅 표 추가.
+- `korean-doc-parser`: 신구대조표·서식 채우기·HWPX 생성은 `kordoc` MCP(`compare_documents`·`fill_form`·`generate_document`)로 보내도록 명시.
+
 ### Removed — 미사용 스킬·매니페스트 전용 MCP 및 korean_law_proxy 정리 (0.5.2)
 
 - `skills/convert-documents-to-markdown`: `korean-doc-parser` 및 `kordoc`과 기능이 중복되는 외부 안내 전용 스킬 삭제.

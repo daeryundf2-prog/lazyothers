@@ -688,3 +688,45 @@ def test_statute_loader_corruption_warns_to_stderr(tmp_path, capsys):
 
 
 
+
+
+def test_tax_tribunal_decision_not_flagged_as_fabricated_court_code():
+    text = "조세심판원은 조심 2023서1234 결정에서 처분을 취소하였다. 국심 2005중567 결정도 같다."
+    res = vlf.verify_legal_text(text, current_year=2026)
+    assert res["errors"] == []
+    assert not any("판례 부호 날조" in w for w in res["warnings"])
+    assert "조심2023서1234" in res["cited_tribunal_decisions"]
+    assert "국심2005중567" in res["cited_tribunal_decisions"]
+    assert res["cited_precedents"] == []
+
+
+def test_tax_tribunal_future_year_is_error():
+    res = vlf.verify_legal_text("조심2031서1 결정 참조.", current_year=2026)
+    assert res["verdict"] == "FAIL"
+    assert any("결정례 날조" in e for e in res["errors"])
+
+
+def test_tax_tribunal_unknown_code_and_pre_2008_warn():
+    res = vlf.verify_legal_text("조심 2005가12 결정 참조.", current_year=2026)
+    assert any("결정례 부호 확인" in w for w in res["warnings"])
+    assert any("2008년 출범" in w for w in res["warnings"])
+
+
+def test_labor_commission_decisions_detected_and_year_checked():
+    text = "중앙2022부해1234 판정과 서울2023부노56 사건, 경기2040차별7 판정을 검토한다."
+    res = vlf.verify_legal_text(text, current_year=2026)
+    assert {"중앙2022부해1234", "서울2023부노56", "경기2040차별7"} <= set(res["cited_tribunal_decisions"])
+    assert res["verdict"] == "FAIL"
+    assert sum("결정례 날조" in e for e in res["errors"]) == 1
+
+
+def test_labor_pattern_ignores_non_commission_prefix():
+    res = vlf.verify_legal_text("사내2023부해12 문서번호를 참고한다.", current_year=2026)
+    assert res["cited_tribunal_decisions"] == []
+
+
+def test_court_precedents_unaffected_by_tribunal_patterns():
+    res = vlf.verify_legal_text("대법원 2017다220744 판결과 조심 2023서1234 결정.", current_year=2026)
+    assert "2017다220744" in res["cited_precedents"]
+    assert "조심2023서1234" in res["cited_tribunal_decisions"]
+    assert res["errors"] == []
