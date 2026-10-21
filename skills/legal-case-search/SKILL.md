@@ -22,6 +22,8 @@ description: "국가법령정보센터 및 대법원 판례 검색, 위법성 �
 > **절대 법률 조문을 조작하거나 임의 창작하지 마십시오 (Never fabricate statutes).**
 > 작성된 모든 법률 검토 결과물은 `verify_legal_factuality.py`를 통해 실존 법령 상한선 및 판례 번호 규칙에 대해 기계적으로 전수 감사됩니다.
 
+최근 개정·확인 조문(정보통신망법 제44조의6, 저작권법 제101조의4, 형사소송법 제220조의2 시행일)은 `references/amendments-checked-2026-10.md`에 색인해 두었다. 인용 전 재조회한다.
+
 ## 기계적 사실성 및 High-Fidelity 게이트
 
 ```bash

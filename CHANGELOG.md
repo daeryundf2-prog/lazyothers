@@ -1,5 +1,11 @@
 # Changelog
 
+### Fixed — 조문·가지번호 상한 재측정 (Unreleased)
+
+- `data/statute_bounds.json`, `data/statute_subarticles.json` → version 2026.10. law.go.kr 현행 본문(부칙 제외, 삭제·시행 예정 조문 포함)에서 2026-10-21 재측정했다. 가지번호 상한이 28개 중 27개에서 실제보다 낮아, 저작권법 제35조의5(공정이용)·제101조의4, 민법 제959조의20, 형사소송법 제220조의2 같은 실존 조문을 "가지번호 날조"로 FAIL 처리했다. 조문 상한도 10개가 틀렸다. 도로교통법(205→166)·의료법(95→93)·특정금융정보법(22→20)·신용정보법(53→52)은 상한이 높아 없는 조문이 통과했고, 정보통신망법(76→77)·전자문서법(37→46) 등은 실존 조문을 막았다.
+- 내장 fallback 값도 같은 수치로 맞췄다. 회귀 테스트 11건을 추가했다.
+- `legal-case-search/references/amendments-checked-2026-10.md`: 정보통신망법 제44조의6(2026. 1. 6. 개정, 분쟁조정부), 저작권법 제101조의4, 형사소송법 제220조의2(2027. 8. 5. 시행) 색인.
+
 ### Removed — 미사용 스킬·매니페스트 전용 MCP 및 korean_law_proxy 정리 (0.5.2)
 
 - `skills/convert-documents-to-markdown`: `korean-doc-parser` 및 `kordoc`과 기능이 중복되는 외부 안내 전용 스킬 삭제.
