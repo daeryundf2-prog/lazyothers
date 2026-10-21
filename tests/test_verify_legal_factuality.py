@@ -131,10 +131,10 @@ def test_flexible_spacing_statute_names_checked():
     assert res_labor["verdict"] == "FAIL"
     assert any("근로기준법" in e and "제120조" in e for e in res_labor["errors"])
 
-    text_secret = "부정경쟁방지 및 영업비밀 보호에 관한 법률 제20조 위반."
+    text_secret = "부정경쟁방지 및 영업비밀 보호에 관한 법률 제25조 위반."
     res_secret = vlf.verify_legal_text(text_secret)
     assert res_secret["verdict"] == "FAIL"
-    assert any("부정경쟁방지" in e and "제20조" in e for e in res_secret["errors"])
+    assert any("부정경쟁방지" in e and "제25조" in e for e in res_secret["errors"])
 
 
 def test_legal_factuality_guard_file_key(tmp_path):
@@ -597,8 +597,8 @@ def test_statute_loaders_resilience_and_warnings(tmp_path):
     assert any("파일 부재" in w for w in vlf._LOAD_WARNINGS)
 
     subarticles = vlf._load_statute_subarticles(custom_path=missing_file)
-    assert subarticles["민법"] == 2
-    assert subarticles["도로교통법"] == 24
+    assert subarticles["민법"] == 20
+    assert subarticles["도로교통법"] == 5
 
     # 2. Corrupted JSON resilience
     corrupt_file = tmp_path / "corrupt.json"
@@ -609,9 +609,9 @@ def test_statute_loaders_resilience_and_warnings(tmp_path):
 
     # 3. Valid real file loading
     real_subs = vlf._load_statute_subarticles()
-    assert real_subs["개인정보보호법"] == 5
-    assert real_subs["정보통신망법"] == 7
-    assert real_subs["형사소송법"] == 6
+    assert real_subs["개인정보보호법"] == 15
+    assert real_subs["정보통신망법"] == 26
+    assert real_subs["형사소송법"] == 17
 
 
 def test_mcp_matcher_validation(tmp_path):
@@ -688,3 +688,25 @@ def test_statute_loader_corruption_warns_to_stderr(tmp_path, capsys):
 
 
 
+
+
+@pytest.mark.parametrize("citation", [
+    "저작권법 제35조의5",   # 공정한 이용 — 이전 데이터(가지번호 상한 0)에서 날조로 오판
+    "저작권법 제101조의4",  # 프로그램코드역분석
+    "민법 제959조의20",     # 후견계약과 성년후견 등의 관계
+    "상법 제287조의45",     # 유한책임회사 청산
+    "형사소송법 제220조의2",  # 압수ㆍ수색ㆍ검증의 영상녹화 (2027. 8. 5. 시행)
+    "정보통신망법 제44조의6",
+    "정보통신망법 제77조",
+    "전자문서 및 전자거래 기본법 제46조",
+])
+def test_real_articles_measured_on_law_go_kr_are_not_flagged(citation):
+    res = vlf.verify_legal_text(f"{citation}에 따른다.", current_year=2026)
+    assert res["errors"] == [], res["errors"]
+
+
+@pytest.mark.parametrize("citation", ["도로교통법 제180조", "의료법 제95조", "특정금융정보법 제22조"])
+def test_articles_beyond_measured_bounds_are_flagged(citation):
+    # 이전 데이터는 도로교통법 205, 의료법 95, 특정금융정보법 22로 상한이 실제보다 높아 날조 조문이 통과했다
+    res = vlf.verify_legal_text(f"{citation}에 따른다.", current_year=2026)
+    assert res["errors"], f"{citation} should exceed the measured bound"
