@@ -9,7 +9,7 @@
   },
   "keywords": ["antigravity", "antigravity-plugin", "mcp", "kordoc", "context7", "hwpx", "hwp", "court-evidence", "legal-tech", "humanize-korean", "im-not-ai", "korean-writing"],
   "type": "module",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "scripts": {
     "setup": "node scripts/sync-mcp.mjs",
     "sync": "node scripts/sync-mcp.mjs",
