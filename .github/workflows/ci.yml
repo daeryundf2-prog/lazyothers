@@ -35,7 +35,8 @@ jobs:
           pytest -q --tb=short 2>&1 | tee pytest.log
           status=${PIPESTATUS[0]}
           # 실패 테스트를 check-run 어노테이션으로 노출 (로그 열람 없이 원인 파악용)
-          grep -E "^(FAILED|ERROR)" pytest.log | head -20 | while read -r line; do
+          # 실패가 없으면 grep이 1을 반환 -> -e/pipefail로 step이 실패하므로 || true
+          { grep -E "^(FAILED|ERROR)" pytest.log || true; } | head -20 | while read -r line; do
             echo "::error::${line}"
           done
           exit $status
