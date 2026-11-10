@@ -1,5 +1,12 @@
 # Changelog
 
+### Added — hypercore 아이디어 12·15·16 반영 (출처 라벨, 수정 sweep, 답만 보고 틀)
+
+- `scripts/certify_evidence_file.py`: `--source-label live|api|rendered|snapshot|reader` 옵션과 기록 필드 `source_label`. 미지정이면 필드가 생기지 않는다. `skills/web-evidence-capture`에 라벨표 절 추가.
+- `scripts/check_revision_residue.py`(신규)와 `tests/test_check_revision_residue.py`: 수정 요청 반영 후 옛 값 잔존을 공백 무시로 찾고, 사유 없는 잔존은 exit 1. `skills/legal-draft-builder`에 변경 지도·잔존 sweep 절(본문/표/별지/증거 목록/번호/사본) 추가.
+- `skills/sqlite-evidence-query`: 답만 쓰는 보고 틀과 종료 상태 4종 추가.
+- `NOTICE`: hypercore(MIT) 출처 표기.
+
 ### Removed — 미사용 스킬·매니페스트 전용 MCP 및 korean_law_proxy 정리 (0.5.2)
 
 - `skills/convert-documents-to-markdown`: `korean-doc-parser` 및 `kordoc`과 기능이 중복되는 외부 안내 전용 스킬 삭제.

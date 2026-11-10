@@ -36,6 +36,30 @@ ${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/certify_evidence_file.py 캡처
 시각이 묶이고, **기록 자체의 SHA-256**도 남는다. 캡처 파일은 인증 후 절대
 편집하지 않는다 — 블러·크롭이 필요하면 원본을 보존한 채 별도 파일로.
 
+## 출처 라벨 (인증 시 함께 기록)
+
+같은 URL이라도 "원본 서버가 준 화면"과 "누군가 보관한 사본"은 법적 의미가
+다르다. 인증할 때 `--source-label`로 이 캡처가 어느 경로에서 나왔는지 기록 필드
+`source_label`에 남긴다. 값은 아래 다섯 가지뿐이다.
+
+| 라벨 | 경로 | 보고서에서 쓰는 말 |
+|---|---|---|
+| `live` | 원본 서버가 직접 준 응답 | "현재 페이지, 측정 시각 기준" |
+| `api` | 같은 플랫폼의 공식 엔드포인트 | "플랫폼 데이터, 엔드포인트 경로 병기" |
+| `rendered` | 브라우저가 JavaScript 실행 후 그린 화면 | "렌더링된 현재 화면, 브라우저 명시" |
+| `snapshot` | 아카이브 보관 사본 | "<아카이브> 사본, <스냅샷 시각> 기준" — 현재 페이지로 쓰지 않는다 |
+| `reader` | 제3자 리더가 렌더한 사본 | 참고용 사본. 아래 증거력 주의에 따라 법원 제출용 채증 불가 |
+
+- 라벨을 모르면 추측으로 붙이지 말고 비워 둔다(필드 자체가 생기지 않는다).
+- `snapshot`은 `--note`에 아카이브 이름과 스냅샷 시각을 함께 적는다.
+- 두 경로의 결과가 서로 다르면(예: 보관 사본과 현재 페이지) 합치지 말고 각 라벨을
+  붙여 둘 다 보고한다.
+
+```bash
+${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/certify_evidence_file.py 캡처1.png \
+    --url "https://example.com/post/123" --source-label rendered --output 채증기록.json
+```
+
 ## 3단 — 표찰·편입 (선택)
 
 ```bash
@@ -57,3 +81,5 @@ ${PLUGIN_ROOT}/scripts/py ${PLUGIN_ROOT}/scripts/audit_evidence_integrity.py --s
   캡처 시각의 페이지 HTTP 상태·제목을 메모(`--note`)로 남긴다.
 - 공정 증명(공증·전자문서 유효확인)이 필요한 사건은 이 스킬 기록을 참고자료로
   쓰고 공적 절차를 병행한다.
+
+<!-- 출처 라벨 구분: hypercore(MIT, (c) 2026 alpoxdev) hyper-browsing/rules/evidence-and-report.md 를 참고해 다시 씀 -->

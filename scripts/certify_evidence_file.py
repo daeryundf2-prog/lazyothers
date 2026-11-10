@@ -11,6 +11,14 @@ from pathlib import Path
 from processing_receipt import approve_receipt, make_receipt, verify_receipt, write_verified, utc_now
 
 CHUNK = 1 << 20
+# 출처 라벨 구분은 hypercore(MIT, (c) 2026 alpoxdev) hyper-browsing/rules/evidence-and-report.md 의 provenance 개념을 참고해 다시 썼다.
+SOURCE_LABELS = {
+    "live": "원본 서버의 직접 응답 (현재 페이지, 측정 시각 기준)",
+    "api": "같은 플랫폼의 공식 엔드포인트 응답",
+    "reader": "제3자 리더가 렌더링한 사본 — 법원 제출용 채증에 부적합(SKILL 증거력 주의)",
+    "snapshot": "아카이브 보관 사본 — 현재 페이지가 아니며 메모에 아카이브명과 스냅샷 시각을 적어야 함",
+    "rendered": "브라우저가 JavaScript 실행 후 그린 화면",
+}
 
 
 def _hash_file(path, algorithm):
@@ -26,7 +34,10 @@ def record_hash(record):
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def certify(files, url, note, case_number):
+def certify(files, url, note, case_number, source_label=""):
+    if source_label and source_label not in SOURCE_LABELS:
+        print(f"[FAIL] Unknown source label: {source_label}", file=sys.stderr)
+        return {}
     items = []
     try:
         for path in files:
@@ -51,6 +62,8 @@ def certify(files, url, note, case_number):
     if not items:
         return {}
     record = {"certified_at_utc": utc_now(), "case_number": case_number, "case_id": case_number or None, "source_url": url, "note": note, "items": items}
+    if source_label:
+        record["source_label"] = source_label
     record["record_sha256"] = record_hash(record)
     return record
 
@@ -58,7 +71,7 @@ def certify(files, url, note, case_number):
 def render_markdown(record):
     def cell(value):
         return str(value).replace("|", "\\|").replace("\n", " ").replace("\r", " ")
-    lines = ["# 웹 채증 기록 (Local File Measurement)", f"측정 시각(UTC): {record['certified_at_utc']}", f"사건번호: {cell(record.get('case_number', ''))}", f"주장된 URL (미검증): {cell(record.get('source_url', ''))}", f"메모: {cell(record.get('note', ''))}", "", "| evidence_id | 파일 | 크기 | SHA-256 | MD5 | 파일 수정 시각(UTC) |", "| --- | --- | --- | --- | --- | --- |"]
+    lines = ["# 웹 채증 기록 (Local File Measurement)", f"측정 시각(UTC): {record['certified_at_utc']}", f"사건번호: {cell(record.get('case_number', ''))}", f"주장된 URL (미검증): {cell(record.get('source_url', ''))}", f"메모: {cell(record.get('note', ''))}", *([f"출처 라벨: {record['source_label']} — {SOURCE_LABELS[record['source_label']]}"] if record.get("source_label") else []), "", "| evidence_id | 파일 | 크기 | SHA-256 | MD5 | 파일 수정 시각(UTC) |", "| --- | --- | --- | --- | --- | --- |"]
     for item in record["items"]:
         lines.append("| " + " | ".join(cell(item[key]) for key in ("evidence_id", "name", "size", "sha256", "md5", "file_mtime_utc")) + " |")
     lines += ["", "본 기록 SHA-256: 별도 JSON의 record_sha256은 JSON 기록에 대한 자체 체크섬입니다.", "> 실행 시점의 로컬 파일 측정입니다. 캡처 시점, URL 진위, 생성 시각은 검증하지 않습니다. 전자서명, 신뢰 타임스탬프, 보관 연속성(custody) 증명이 아닙니다. 검토 승인 여부는 별도 JSON receipt를 확인하십시오."]
@@ -71,13 +84,14 @@ def main(argv=None):
     parser.add_argument("--url", default="")
     parser.add_argument("--note", default="")
     parser.add_argument("--case", default="")
+    parser.add_argument("--source-label", choices=sorted(SOURCE_LABELS), default="", help="출처 라벨 (live|api|reader|snapshot|rendered)")
     parser.add_argument("--output", default="")
     parser.add_argument("--output-md", default="")
     parser.add_argument("--reviewer")
     args = parser.parse_args(argv)
     if args.reviewer and not (args.output and args.output_md):
         parser.error("Approval requires --output and --output-md")
-    record = certify(args.files, args.url, args.note, args.case)
+    record = certify(args.files, args.url, args.note, args.case, args.source_label)
     if not record:
         return 2
     try:
