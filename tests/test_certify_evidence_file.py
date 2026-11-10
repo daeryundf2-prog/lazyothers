@@ -101,3 +101,20 @@ def test_changed_source_is_rejected(capture, monkeypatch):
 
 def test_main_missing_file_exit_2():
     assert cef.main(["없는파일.png"]) == 2
+
+def test_source_label_is_recorded_and_rendered(capture, tmp_path):
+    out_json = tmp_path / "record.json"
+    out_md = tmp_path / "record.md"
+    assert cef.main([str(capture), "--source-label", "snapshot", "--output", str(out_json), "--output-md", str(out_md)]) == 0
+    rec = json.loads(out_json.read_text(encoding="utf-8"))
+    assert rec["source_label"] == "snapshot"
+    assert rec["record_sha256"] == cef.record_hash(rec)
+    assert "출처 라벨: snapshot" in out_md.read_text(encoding="utf-8")
+
+
+def test_unlabeled_record_has_no_source_label_key(capture):
+    assert "source_label" not in cef.certify([str(capture)], url="", note="", case_number="")
+
+
+def test_unknown_source_label_is_rejected(capture):
+    assert cef.certify([str(capture)], url="", note="", case_number="", source_label="wayback") == {}

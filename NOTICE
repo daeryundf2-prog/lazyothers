@@ -1,0 +1,11 @@
+Third-party ideas
+
+hypercore (MIT License, Copyright (c) 2026 alpoxdev), https://github.com/alpoxdev/hypercore
+  Pinned at 2d305cbf5db72e337189aa584b363bb9ced2d9bc. Rules were read and rewritten in this
+  repository's own words and language; no prose or code is copied.
+  - skills/web-evidence-capture, scripts/certify_evidence_file.py: provenance label
+    (hyper-browsing/rules/evidence-and-report.md)
+  - skills/legal-draft-builder, scripts/check_revision_residue.py: change map and residue sweep
+    (hyper-feedback/rules/change-mapping.md)
+  - skills/sqlite-evidence-query: answer-only report shape
+    (hyper-data/rules/query-evidence.md)
